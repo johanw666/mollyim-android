@@ -85,7 +85,7 @@ protobuf {
 }
 
 def canonicalVersionCode = 619
-def canonicalVersionName = "4.58.5"
+def canonicalVersionName = "4.58.5-2.1-JW" // JW
 
 def postFixSize = 10
 def abiPostFix = ['universal'   : 0,
@@ -133,7 +133,7 @@ android {
         buildConfigField "boolean", "AUTOMATIC_UPDATES", "false"
         buildConfigField "String", "NOPLAY_UPDATE_URL", "\"https://updates.signal.org/android\""
         buildConfigField "String", "BACKUP_DIRECTORY", "\"$appName\""
-        buildConfigField "long", "BUILD_TIMESTAMP", "${buildTimestamp}L"
+        buildConfigField "long", "BUILD_TIMESTAMP", System.currentTimeMillis() + "L" // JW: build without git clone
         buildConfigField "String", "SIGNAL_SERVICE_STATUS_URL", "\"uptime.signal.org\""
         buildConfigField "String", "CONTENT_PROXY_HOST", "\"contentproxy.signal.org\""
         buildConfigField "int", "CONTENT_PROXY_PORT", "443"
@@ -147,9 +147,19 @@ android {
             abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86_64'
         }
 
-        ndkVersion "21.0.6113669"
+        // ndkVersion "21.0.6113669" // JW: don't fix this
 
         resConfigs autoResConfig()
+
+        // JW: add splits
+        splits {
+            abi {
+                enable true
+                reset()
+                include 'armeabi-v7a', 'arm64-v8a', 'x86_64'
+                universalApk true
+            }
+        }
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -239,10 +249,16 @@ android {
         variant.resValue "string", "package_name", variant.applicationId
     }
 
+    // JW: change output names
     android.applicationVariants.all { variant ->
-        variant.outputs.all {
-            def flavor = variant.baseName + (buildType.signingConfig ? "" : "-unsigned")
-            outputFileName = "${appName}-${flavor}-${versionName}.apk"
+        variant.outputs.each { output ->
+            output.outputFileName = output.outputFileName.replace(".apk", "-${variant.versionName}.apk")
+            def abiName = output.getFilter("ABI") ?: 'universal'
+            def postFix = abiPostFix.get(abiName, 0)
+
+            if (postFix >= postFixSize) throw new AssertionError("postFix is too large")
+
+            output.versionCodeOverride = canonicalVersionCode * postFixSize + postFix
         }
     }
 
@@ -265,6 +281,7 @@ tasks.withType(JavaCompile) {
 }
 
 dependencies {
+    implementation 'net.lingala.zip4j:zip4j:2.5.2' // JW: added
     implementation 'androidx.appcompat:appcompat:1.1.0-beta01'
     implementation 'androidx.recyclerview:recyclerview:1.0.0'
     implementation 'com.google.android.material:material:1.0.0'
