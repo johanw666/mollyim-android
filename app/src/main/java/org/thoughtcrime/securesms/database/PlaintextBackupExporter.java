@@ -13,8 +13,8 @@ import java.io.IOException;
 
 public class PlaintextBackupExporter {
 
-  private static final String FILENAME = "SignalPlaintextBackup.xml";
-  private static final String ZIPFILENAME = "SignalPlaintextBackup.zip";
+  private static final String FILENAME = "MollyPlaintextBackup.xml";
+  private static final String ZIPFILENAME = "MollyPlaintextBackup.zip";
 
   public static void exportPlaintextToSd(Context context)
       throws NoExternalStorageException, IOException

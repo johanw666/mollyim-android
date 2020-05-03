@@ -86,18 +86,11 @@ public class PlaintextBackupImporter {
   }
 
   private static File getPlaintextExportFile() throws NoExternalStorageException {
-    File backup         = new File(StorageUtil.getBackupPlaintextDirectory(), "SignalPlaintextBackup.xml");
-    File previousBackup = new File(StorageUtil.getLegacyBackupDirectory(), "SignalPlaintextBackup.xml");
-    File oldBackup      = new File(Environment.getExternalStorageDirectory(), "TextSecurePlaintextBackup.xml");
-
-    if (backup.exists()) return backup;
-    else if (previousBackup.exists()) return previousBackup;
-    else if (oldBackup.exists()) return oldBackup;
-    else return backup;
+    return new File(StorageUtil.getBackupPlaintextDirectory(), "MollyPlaintextBackup.xml");
   }
 
   private static File getPlaintextExportZipFile() throws NoExternalStorageException {
-    return new File(StorageUtil.getBackupPlaintextDirectory(), "SignalPlaintextBackup.zip");
+    return new File(StorageUtil.getBackupPlaintextDirectory(), "MollyPlaintextBackup.zip");
   }
 
   @SuppressWarnings("SameParameterValue")

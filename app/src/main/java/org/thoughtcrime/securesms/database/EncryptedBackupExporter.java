@@ -58,8 +58,8 @@ public class EncryptedBackupExporter {
   private static final String attachmentSecretFile = "attachmentsecret.txt";
   private static final String logSecretFile = "logsecret.txt";
   private static final String backupKeyFile = "backupkey.txt";
-  private static final String exportDirectory = "SignalExport";
-  private static final String secretsExportDirectory = "SignalSecrets";
+  private static final String exportDirectory = "MollyExport";
+  private static final String secretsExportDirectory = "MollySecrets";
 
   public static void exportToSd(Context context) throws NoExternalStorageException, IOException {
     verifyExternalStorageForExport(context);
@@ -494,7 +494,7 @@ public class EncryptedBackupExporter {
   private static String getEncryptedZipfileName() {
     try {
       String backupPath = StorageUtil.getRawBackupDirectory().getAbsolutePath();
-      return backupPath + File.separator + "SignalExport.zip";
+      return backupPath + File.separator + "MollyExport.zip";
     } catch (NoExternalStorageException e) {
       Log.w(TAG, "getEncryptedZipfileName failed: " + e.toString());
       return Environment.getExternalStorageDirectory().getAbsolutePath();
