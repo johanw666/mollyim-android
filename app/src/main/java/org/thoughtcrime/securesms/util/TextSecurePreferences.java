@@ -186,6 +186,9 @@ public class TextSecurePreferences {
 
   // JW: added: true = backup to removable SD card (if available), false = backup to internal sd card
   public static final String BACKUP_LOCATION_REMOVABLE_PREF = "pref_backup_location_external";
+  // JW: false (default) means the backup location is not changed by the user, true means it is changed.
+  // This is used to determine at first app start to locate the app backup.
+  public static final String BACKUP_LOCATION_CHANGED = "pref_backup_location_changed"; 
   // JW: added to use encrypted zipfiles to store raw backups
   public static final String BACKUP_STORE_ZIPFILE_PREF = "pref_backup_zipfile";
   // JW: added to use encrypted zipfiles to store plaintext backups
@@ -204,6 +207,14 @@ public class TextSecurePreferences {
   // JW added. Default to false so default does the same as official Signal.
   public static boolean isBackupLocationRemovable(@NonNull Context context) {
     return getBooleanPreference(context, BACKUP_LOCATION_REMOVABLE_PREF, false);
+  }
+  // JW added
+  public static void setBackupLocationChanged(@NonNull Context context, boolean value) {
+    setBooleanPreference(context, BACKUP_LOCATION_CHANGED, value);
+  }
+  // JW added
+  public static boolean isBackupLocationChanged(@NonNull Context context) {
+    return getBooleanPreference(context, BACKUP_LOCATION_CHANGED, false);
   }
   // JW added.
   public static boolean isRawBackupInZipfile(@NonNull Context context) {

@@ -157,6 +157,7 @@ public class ChatsPreferenceFragment extends ListSummaryPreferenceFragment {
       // Set the new preference ourself before calling setBackupSummary() to make it use
       // the correct backup directory.
       TextSecurePreferences.setBackupLocationRemovable(getActivity(), (boolean)newValue);
+      TextSecurePreferences.setBackupLocationChanged(getActivity(), true); // Required for BackupUtil.getAllBackupsNewestFirst()
       setBackupSummary();
       return true;
     }

@@ -76,14 +76,20 @@ public class BackupUtil {
   private static List<BackupInfo> getAllBackupsNewestFirst() throws NoExternalStorageException {
     File             backupDirectory = StorageUtil.getBackupDirectory();
     File[]           files           = backupDirectory.listFiles();
-    // JW: if no backup found in internal storage, try removable storage
+    // JW: if no backup found in internal storage, try removable storage.
+    // This code is used at first app start when restoring a backup that is located
+    // on the removable storage.
     if (files.length == 0) {
       Context context = ApplicationDependencies.getApplication();
-      TextSecurePreferences.setBackupLocationRemovable(context, true);
-      backupDirectory = StorageUtil.getBackupDirectory();
-      files   = backupDirectory.listFiles();
-      if (files.length == 0) { // No backup in removable storage
-        TextSecurePreferences.setBackupLocationRemovable(context, false);
+      // This code should run only at the initial app start. In that case isBackupLocationChanged
+      // defaults to false.
+      if (!TextSecurePreferences.isBackupLocationChanged(context)) {
+        TextSecurePreferences.setBackupLocationRemovable(context, true);
+        backupDirectory = StorageUtil.getBackupDirectory();
+        files   = backupDirectory.listFiles();
+        if (files.length == 0) { // No backup in removable storage, reset preference to default value
+          TextSecurePreferences.setBackupLocationRemovable(context, false);
+        }
       }
     }
     List<BackupInfo> backups         = new ArrayList<>(files.length);
