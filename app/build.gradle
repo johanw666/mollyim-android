@@ -85,7 +85,7 @@ protobuf {
 }
 
 def canonicalVersionCode = 702
-def canonicalVersionName = "4.70.5"
+def canonicalVersionName = "4.70.5-1.0-JW-eba4106"
 
 def postFixSize = 10
 def abiPostFix = ['universal'   : 0,
@@ -130,7 +130,7 @@ android {
 
         vectorDrawables.useSupportLibrary = true
 
-        buildConfigField "long", "BUILD_TIMESTAMP", "${buildTimestamp}L"
+        buildConfigField "long", "BUILD_TIMESTAMP", System.currentTimeMillis() + "L" // JW: build without git clone
         buildConfigField "String", "SIGNAL_URL", "\"https://textsecure-service.whispersystems.org\""
         buildConfigField "String", "STORAGE_URL", "\"https://storage.signal.org\""
         buildConfigField "String", "SIGNAL_CDN_URL", "\"https://cdn.signal.org\""
@@ -155,12 +155,12 @@ android {
         buildConfigField "String", "BACKUP_DIRECTORY", "\"$appName\""
 
         ndk {
-            abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86_64'
+            abiFilters 'armeabi-v7a'  // JW: no x86 or armv8 builds
         }
 
         resConfigs autoResConfig()
 
-        ndkVersion "21.3.6528147"
+        // ndkVersion "21.3.6528147" // JW: don't set this to a fixed value
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -181,7 +181,7 @@ android {
     }
 
     aaptOptions {
-        ignoreAssetsPattern '!contours.tfl:!LMprec_600.emd:!fssd_25_8bit_gray_v1.tflite:!fssd_25_8bit_v1.tflite:!blazeface.tfl'
+        ignoreAssetsPattern '!contours.tfl:!LMprec_600.emd:!blazeface.tfl' // JW: Backport Signal 4.71.5 crash fix
     }
 
     buildTypes {
@@ -248,9 +248,15 @@ android {
     }
 
     android.applicationVariants.all { variant ->
-        variant.outputs.all {
-            def flavor = variant.baseName + (buildType.signingConfig ? "" : "-unsigned")
-            outputFileName = "${appName}-${flavor}-${versionName}.apk"
+        // JW: rewrote naming
+        variant.outputs.each { output ->
+            output.outputFileName = output.outputFileName.replace(".apk", "-${variant.versionName}.apk")
+            def abiName = output.getFilter("ABI") ?: 'universal'
+            def postFix = abiPostFix.get(abiName, 0)
+
+            if (postFix >= postFixSize) throw new AssertionError("postFix is too large")
+
+            output.versionCodeOverride = canonicalVersionCode * postFixSize + postFix
         }
     }
 
@@ -274,6 +280,7 @@ tasks.withType(JavaCompile) {
 dependencies {
     lintChecks project(':lintchecks')
 
+    implementation 'net.lingala.zip4j:zip4j:2.6.2' // JW: added
     implementation('androidx.appcompat:appcompat:1.1.0-beta01') {
         force = true
     }
