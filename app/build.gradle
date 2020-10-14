@@ -81,7 +81,7 @@ protobuf {
 }
 
 def canonicalVersionCode = 715
-def canonicalVersionName = "4.72.6"
+def canonicalVersionName = "4.72.6-1.0-JW"
 
 def postFixSize = 10
 def abiPostFix = ['universal'   : 0,
@@ -126,7 +126,7 @@ android {
 
         vectorDrawables.useSupportLibrary = true
 
-        buildConfigField "long", "BUILD_TIMESTAMP", "${buildTimestamp}L"
+        buildConfigField "long", "BUILD_TIMESTAMP", System.currentTimeMillis() + "L" // JW: build without git clone
         buildConfigField "String", "SIGNAL_URL", "\"https://textsecure-service.whispersystems.org\""
         buildConfigField "String", "STORAGE_URL", "\"https://storage.signal.org\""
         buildConfigField "String", "SIGNAL_CDN_URL", "\"https://cdn.signal.org\""
@@ -155,7 +155,17 @@ android {
 
         resConfigs autoResConfig()
 
-        ndkVersion "21.3.6528147"
+        // JW: split apk's
+        splits {
+            abi {
+                enable true
+                reset()
+                include 'armeabi-v7a', 'arm64-v8a', 'x86_64'
+                universalApk true
+            }
+        }
+
+        // ndkVersion "21.3.6528147" // JW: don't set this to a fixed value
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -243,15 +253,26 @@ android {
         }
     }
 
+    // JW: changed naming
+    applicationVariants.all { variant ->
+        variant.resValue "string", "package_name", variant.applicationId
+    }
+
     android.applicationVariants.all { variant ->
         def isStaging = variant.productFlavors*.name.contains("staging");
 
         variant.resValue 'string', 'app_name', isStaging ? appName + " Staging" : appName
         variant.resValue "string", 'package_name', variant.applicationId
 
-        variant.outputs.all {
-            def flavors = variant.baseName - ~/(free|nonFree)-/ + (buildType.signingConfig ? "" : "-unsigned")
-            outputFileName = "${appName}-${flavors}-${versionName}.apk"
+        // JW: rewrote naming
+        variant.outputs.each { output ->
+            output.outputFileName = output.outputFileName.replace(".apk", "-${variant.versionName}.apk")
+            def abiName = output.getFilter("ABI") ?: 'universal'
+            def postFix = abiPostFix.get(abiName, 0)
+
+            if (postFix >= postFixSize) throw new AssertionError("postFix is too large")
+
+            output.versionCodeOverride = canonicalVersionCode * postFixSize + postFix
         }
     }
 
@@ -275,6 +296,7 @@ tasks.withType(JavaCompile) {
 dependencies {
     lintChecks project(':lintchecks')
 
+    implementation 'net.lingala.zip4j:zip4j:2.6.3' // JW: added
     implementation('androidx.appcompat:appcompat:1.1.0-beta01') {
         force = true
     }
