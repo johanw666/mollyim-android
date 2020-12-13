@@ -37,6 +37,8 @@ public class ChatsPreferenceFragment extends ListSummaryPreferenceFragment {
         .setOnPreferenceChangeListener(new MediaDownloadChangeListener());
     findPreference(TextSecurePreferences.MESSAGE_BODY_TEXT_SIZE_PREF)
         .setOnPreferenceChangeListener(new ListSummaryListener());
+    findPreference(TextSecurePreferences.BACKUP_LOCATION_REMOVABLE_PREF) // JW: added
+        .setOnPreferenceChangeListener(new BackupLocationListener());
 
     findPreference(TextSecurePreferences.BACKUP).setOnPreferenceClickListener(unused -> {
       goToBackupsPreferenceFragment();
@@ -44,6 +46,17 @@ public class ChatsPreferenceFragment extends ListSummaryPreferenceFragment {
     });
 
     initializeListSummary((ListPreference) findPreference(TextSecurePreferences.MESSAGE_BODY_TEXT_SIZE_PREF));
+  }
+
+  // JW: added
+  private class BackupLocationListener implements Preference.OnPreferenceChangeListener {
+    @Override public boolean onPreferenceChange(Preference preference, Object newValue) {
+      // Set the new preference ourself before calling setBackupSummary() to make it use
+      // the correct backup directory.
+      TextSecurePreferences.setBackupLocationRemovable(getActivity(), (boolean)newValue);
+      TextSecurePreferences.setBackupLocationChanged(getActivity(), true); // Required for BackupUtil.getAllBackupsNewestFirst()
+      return true;
+    }
   }
 
   @Override
