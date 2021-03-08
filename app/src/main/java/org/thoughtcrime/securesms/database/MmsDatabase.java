@@ -1605,6 +1605,15 @@ public class MmsDatabase extends MessageDatabase {
     return threadDeleted;
   }
 
+  // JW: added method. Deletes only the attachment for the message, not the message itself.
+  public boolean deleteAttachmentsOnly(long messageId) {
+    long               threadId           = getThreadIdForMessage(messageId);
+    AttachmentDatabase attachmentDatabase = DatabaseFactory.getAttachmentDatabase(context);
+    attachmentDatabase.deleteAttachmentsForMessage(messageId);
+    notifyConversationListeners(threadId);
+    return true;
+  }
+
   @Override
   public void deleteThread(long threadId) {
     Log.d(TAG, "deleteThread(" + threadId + ")");

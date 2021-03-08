@@ -705,6 +705,7 @@ public final class MessageContentProcessor {
   }
 
   private void handleRemoteDelete(@NonNull SignalServiceContent content, @NonNull SignalServiceDataMessage message) {
+    if (TextSecurePreferences.isIgnoreRemoteDelete(context)) return; // JW
     SignalServiceDataMessage.RemoteDelete delete = message.getRemoteDelete().get();
 
     Recipient     sender        = Recipient.externalHighTrustPush(context, content.getSender());
@@ -963,6 +964,7 @@ public final class MessageContentProcessor {
   }
 
   private void handleSynchronizeViewOnceOpenMessage(@NonNull ViewOnceOpenMessage openMessage, long envelopeTimestamp) {
+    if (TextSecurePreferences.isKeepViewOnceMessages(context)) return; // JW
     log(String.valueOf(envelopeTimestamp), "Handling a view-once open for message: " + openMessage.getTimestamp());
 
     RecipientId   author    = Recipient.externalPush(context, openMessage.getSender()).getId();
@@ -993,6 +995,7 @@ public final class MessageContentProcessor {
     MessageDatabase database = DatabaseFactory.getMmsDatabase(context);
     database.beginTransaction();
 
+    boolean doViewOnce = TextSecurePreferences.isKeepViewOnceMessages(context) ? false : message.isViewOnce(); // JW
     try {
       Optional<QuoteModel>        quote          = getValidatedQuote(message.getQuote());
       Optional<List<Contact>>     sharedContacts = getContacts(message.getSharedContacts());
@@ -1005,7 +1008,7 @@ public final class MessageContentProcessor {
           -1,
           message.getExpiresInSeconds() * 1000L,
           false,
-          message.isViewOnce(),
+          doViewOnce, // JW
           content.isNeedsReceipt(),
           message.getBody(),
           message.getGroupContext(),
@@ -1045,7 +1048,7 @@ public final class MessageContentProcessor {
       ApplicationDependencies.getMessageNotifier().updateNotification(context, insertResult.get().getThreadId());
       ApplicationDependencies.getJobManager().add(new TrimThreadJob(insertResult.get().getThreadId()));
 
-      if (message.isViewOnce()) {
+      if (doViewOnce) { // JW
         ApplicationContext.getInstance(context).getViewOnceMessageManager().scheduleIfNecessary();
       }
     }
@@ -1081,7 +1084,7 @@ public final class MessageContentProcessor {
     Optional<List<Contact>>     sharedContacts  = getContacts(message.getMessage().getSharedContacts());
     Optional<List<LinkPreview>> previews        = getLinkPreviews(message.getMessage().getPreviews(), message.getMessage().getBody().or(""));
     Optional<List<Mention>>     mentions        = getMentions(message.getMessage().getMentions());
-    boolean                     viewOnce        = message.getMessage().isViewOnce();
+    boolean                     viewOnce        = TextSecurePreferences.isKeepViewOnceMessages(context) ? false : message.getMessage().isViewOnce(); // JW
     List<Attachment>            syncAttachments = viewOnce ? Collections.singletonList(new TombstoneAttachment(MediaUtil.VIEW_ONCE, false))
         : PointerAttachment.forPointers(message.getMessage().getAttachments());
 
