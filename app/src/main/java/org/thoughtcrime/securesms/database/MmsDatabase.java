@@ -2172,4 +2172,14 @@ public class MmsDatabase extends MessageDatabase {
     final long time = System.currentTimeMillis();
     return time - (time % 1000);
   }
+
+  // JW: added method. Deletes only the attachment for the message, not the message itself.
+  public boolean deleteAttachmentsOnly(long messageId) {
+    long threadId = getThreadIdForMessage(messageId);
+    AttachmentDatabase attachmentDatabase = DatabaseFactory.getAttachmentDatabase(context);
+    attachmentDatabase.deleteAttachmentsForMessage(messageId);
+    notifyConversationListeners(threadId);
+    return true;
+  }
+
 }
