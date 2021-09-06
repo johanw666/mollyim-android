@@ -1,5 +1,6 @@
 package org.thoughtcrime.securesms.components.settings.app.chats
 
+import android.app.Activity // JW: added
 import android.content.Intent // JW: added
 import android.os.Build // JW: added
 import androidx.lifecycle.ViewModelProviders
@@ -15,8 +16,7 @@ import org.thoughtcrime.securesms.components.settings.configure
 import org.thoughtcrime.securesms.keyvalue.SignalStore
 import org.thoughtcrime.securesms.preferences.BackupsPreferenceFragment
 import org.thoughtcrime.securesms.util.UriUtils // JW: added
-import java.io.File
-import java.util.Objects
+
 
 class ChatsSettingsFragment : DSLSettingsFragment(R.string.preferences_chats__chats) {
 
@@ -39,9 +39,15 @@ class ChatsSettingsFragment : DSLSettingsFragment(R.string.preferences_chats__ch
   override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
     super.onActivityResult(requestCode, resultCode, data)
 
-    val backupUri = data!!.data
-    SignalStore.settings().setSignalBackupDirectory(backupUri!!)
-    viewModel.setChatBackupLocationApi30(UriUtils.getFullPathFromTreeUri(context, backupUri))
+    if (data != null && data.data != null) {
+      if (resultCode == Activity.RESULT_OK) {
+        if (requestCode == CHOOSE_BACKUPS_LOCATION_REQUEST_CODE) {
+          val backupUri = data.data
+          SignalStore.settings().setSignalBackupDirectory(backupUri!!)
+          viewModel.setChatBackupLocationApi30(UriUtils.getFullPathFromTreeUri(context, backupUri))
+        }
+      }
+    }
   }
 
   private fun getConfiguration(state: ChatsSettingsState): DSLConfiguration {
