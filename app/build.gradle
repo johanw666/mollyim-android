@@ -78,14 +78,14 @@ protobuf {
 }
 
 def canonicalVersionCode = 919
-def canonicalVersionName = "5.23.8"
+def canonicalVersionName = "5.23.8-1.0-JW"
 
 def postFixSize = 100
-def abiPostFix = ['universal'   : 5,
-                  'armeabi-v7a' : 6,
-                  'arm64-v8a'   : 7,
-                  'x86'         : 8,
-                  'x86_64'      : 9]
+def abiPostFix = ['universal'   : 0,
+                  'armeabi-v7a' : 1,
+                  'arm64-v8a'   : 2,
+                  'x86'         : 3,
+                  'x86_64'      : 4]
 
 static def getCommitTag() {
     return "git describe --tags --exact-match".execute().text.trim() ?: "untagged"
@@ -183,8 +183,8 @@ android {
 
         vectorDrawables.useSupportLibrary = true
 
-        buildConfigField "long", "BUILD_TIMESTAMP", getBuildTimestamp() + "L"
-        buildConfigField "String", "GIT_HASH", "\"${getCommitHash()}\""
+        buildConfigField "long", "BUILD_TIMESTAMP", System.currentTimeMillis() + "L" // JW: build without git clone
+        buildConfigField "String", "GIT_HASH", "\"00000\"" // JW: empty string, I don't build from a repository
         buildConfigField "String", "SIGNAL_URL", "\"https://textsecure-service.whispersystems.org\""
         buildConfigField "String", "STORAGE_URL", "\"https://storage.signal.org\""
         buildConfigField "String", "SIGNAL_CDN_URL", "\"https://cdn.signal.org\""
@@ -221,6 +221,16 @@ android {
         }
 
         resConfigs autoResConfig()
+
+        // JW: split apk's
+        splits {
+            abi {
+                enable true
+                reset()
+                include 'armeabi-v7a', 'arm64-v8a', 'x86_64'
+                universalApk true
+            }
+        }
 
         ndkVersion "21.4.7075529"
 
@@ -337,15 +347,26 @@ android {
         }
     }
 
+    // JW: changed naming
+    applicationVariants.all { variant ->
+        variant.resValue "string", "package_name", variant.applicationId
+    }
+
     android.applicationVariants.all { variant ->
         def isStaging = variant.productFlavors*.name.contains("staging");
 
         variant.resValue 'string', 'app_name', isStaging ? appName + " Staging" : appName
         variant.resValue "string", 'package_name', variant.applicationId
 
-        variant.outputs.all {
-            def flavors = variant.baseName - ~/(free|nonFree)-/ + (buildType.signingConfig ? "" : "-unsigned")
-            outputFileName = "${appName}-${flavors}-${versionName}.apk"
+        // JW: rewrote naming
+        variant.outputs.each { output ->
+            output.outputFileName = output.outputFileName.replace(".apk", "-${variant.versionName}.apk")
+            def abiName = output.getFilter("ABI") ?: 'universal'
+            def postFix = abiPostFix.get(abiName, 0)
+
+            if (postFix >= postFixSize) throw new AssertionError("postFix is too large")
+
+            output.versionCodeOverride = canonicalVersionCode * postFixSize + postFix
         }
     }
 
@@ -373,6 +394,7 @@ dependencies {
 
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:1.1.5'
 
+    implementation 'net.lingala.zip4j:zip4j:2.9.0' // JW: added
     implementation ('androidx.appcompat:appcompat:1.2.0') {
         force = true
     }
