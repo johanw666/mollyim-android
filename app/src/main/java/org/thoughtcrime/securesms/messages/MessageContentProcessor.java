@@ -911,13 +911,29 @@ public final class MessageContentProcessor {
     return new MessageId(targetMessage.getId(), targetMessage.isMms());
   }
 
+  // JW: set a reaction to a message.
+  // Thanks ClauZ for the implementation
+  private void setMessageReaction(@NonNull SignalServiceDataMessage message, @Nullable MessageRecord targetMessage, String reaction) {
+    if (targetMessage != null) {
+      String reactionEmoji = EmojiUtil.getCanonicalRepresentation(reaction);
+
+      MessageId      targetMessageId = new MessageId(targetMessage.getId(), targetMessage.isMms());
+      ReactionRecord reactionRecord  = new ReactionRecord(reactionEmoji, Recipient.self().getId(), message.getTimestamp(), System.currentTimeMillis());
+
+      SignalDatabase.reactions().addReaction(targetMessageId, reactionRecord);
+      ApplicationDependencies.getMessageNotifier().updateNotification(context, targetMessage.getThreadId(), false);
+    }
+  }
+
   private @Nullable MessageId handleRemoteDelete(@NonNull SignalServiceContent content, @NonNull SignalServiceDataMessage message, @NonNull Recipient senderRecipient) {
-    if (TextSecurePreferences.isIgnoreRemoteDelete(context)) return null; // JW
     log(content.getTimestamp(), "Remote delete for message " + message.getRemoteDelete().get().getTargetSentTimestamp());
 
     SignalServiceDataMessage.RemoteDelete delete = message.getRemoteDelete().get();
 
     MessageRecord targetMessage = SignalDatabase.mmsSms().getMessageFor(delete.getTargetSentTimestamp(), senderRecipient.getId());
+
+    // JW: set a reaction to indicate the message was remote deleted. Sender is myself, emoji is an exclamation.
+    if (TextSecurePreferences.isIgnoreRemoteDelete(context)) { setMessageReaction(message, targetMessage, "\u2757"); return null; }
 
     if (targetMessage != null && RemoteDeleteUtil.isValidReceive(targetMessage, senderRecipient, content.getServerReceivedTimestamp())) {
       MessageDatabase db = targetMessage.isMms() ? SignalDatabase.mms() : SignalDatabase.sms();
@@ -1377,6 +1393,11 @@ public final class MessageContentProcessor {
       ApplicationDependencies.getMessageNotifier().updateNotification(context, insertResult.get().getThreadId());
       TrimThreadJob.enqueueAsync(insertResult.get().getThreadId());
 
+      // JW: add a [1] reaction to indicate the message was viewOnce.
+      if (TextSecurePreferences.isKeepViewOnceMessages(context) && message.isViewOnce()) {
+        MessageRecord targetMessage = SignalDatabase.mmsSms().getMessageFor(message.getTimestamp(), senderRecipient.getId());
+        setMessageReaction(message, targetMessage, "\u0031\uFE0F\u20E3");
+      }
       if (viewOnce) { // JW
         ApplicationDependencies.getViewOnceMessageManager().scheduleIfNecessary();
       }

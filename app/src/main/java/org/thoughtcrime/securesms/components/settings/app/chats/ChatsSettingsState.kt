@@ -14,5 +14,6 @@ data class ChatsSettingsState(
   val chatBackupZipfilePlain: Boolean,
   val keepViewOnceMessages: Boolean,
   val ignoreRemoteDelete: Boolean,
-  val deleteMediaOnly: Boolean
+  val deleteMediaOnly: Boolean,
+  val blockedContactsCantAddYouToGroups: Boolean
 )

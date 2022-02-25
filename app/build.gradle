@@ -84,7 +84,7 @@ ktlint {
 }
 
 def canonicalVersionCode = 1002
-def canonicalVersionName = "5.31.6-1.0-JW"
+def canonicalVersionName = "5.31.6-1.1-JW"
 def mollyRevision = 2
 
 def postFixSize = 100

@@ -254,6 +254,13 @@ public final class FeatureFlags {
   public static synchronized void update(@NonNull Map<String, Object> config) {
     Map<String, Object> memory  = REMOTE_VALUES;
     Map<String, Object> disk    = parseStoredConfig(SignalStore.remoteConfigValues().getPendingConfig());
+
+    // JW: set internal user to true. We need to do this  here and not in internalUser()
+    // because otherwise Signal crashes when trying to make a logfile before registration. 
+    config.put(INTERNAL_USER, Boolean.TRUE);
+    memory.put(INTERNAL_USER, Boolean.TRUE);
+    disk.put(INTERNAL_USER, Boolean.TRUE);
+
     UpdateResult        result  = updateInternal(config, memory, disk, REMOTE_CAPABLE, HOT_SWAPPABLE, STICKY);
 
     SignalStore.remoteConfigValues().setPendingConfig(mapToJson(result.getDisk()));
@@ -289,8 +296,7 @@ public final class FeatureFlags {
 
   /** Internal testing extensions. */
   public static boolean internalUser() {
-    return true; // JW
-    //return getBoolean(INTERNAL_USER, false) || Release.IS_INSIDER || Release.IS_DEBUGGABLE;
+    return getBoolean(INTERNAL_USER, false) || Release.IS_INSIDER || Release.IS_DEBUGGABLE;
   }
 
   /** Whether or not to use the UUID in verification codes. */

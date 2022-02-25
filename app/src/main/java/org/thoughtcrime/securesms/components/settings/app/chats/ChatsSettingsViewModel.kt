@@ -39,7 +39,8 @@ class ChatsSettingsViewModel(private val sharedPreferences: SharedPreferences, p
       chatBackupZipfilePlain = TextSecurePreferences.isPlainBackupInZipfile(ApplicationDependencies.getApplication()),
       keepViewOnceMessages = TextSecurePreferences.isKeepViewOnceMessages(ApplicationDependencies.getApplication()),
       ignoreRemoteDelete = TextSecurePreferences.isIgnoreRemoteDelete(ApplicationDependencies.getApplication()),
-      deleteMediaOnly = TextSecurePreferences.isDeleteMediaOnly(ApplicationDependencies.getApplication())
+      deleteMediaOnly = TextSecurePreferences.isDeleteMediaOnly(ApplicationDependencies.getApplication()),
+      blockedContactsCantAddYouToGroups = TextSecurePreferences.blockedContactsCantAddYouToGroups(ApplicationDependencies.getApplication())
     )
   )
 
@@ -135,6 +136,12 @@ class ChatsSettingsViewModel(private val sharedPreferences: SharedPreferences, p
   }
 
   // JW: added
+  fun setBlockedCanAddYouToGroups(enabled: Boolean) {
+    TextSecurePreferences.setBlockedContactsCantAddYouToGroups(context, enabled)
+    refresh()
+  }
+
+  // JW: added
   private fun getState() = ChatsSettingsState(
     generateLinkPreviews = SignalStore.settings().isLinkPreviewsEnabled,
     useAddressBook = SignalStore.settings().isPreferSystemContactPhotos,
@@ -147,7 +154,8 @@ class ChatsSettingsViewModel(private val sharedPreferences: SharedPreferences, p
     chatBackupZipfilePlain = TextSecurePreferences.isPlainBackupInZipfile(context),
     keepViewOnceMessages = TextSecurePreferences.isKeepViewOnceMessages(context),
     ignoreRemoteDelete = TextSecurePreferences.isIgnoreRemoteDelete(context),
-    deleteMediaOnly = TextSecurePreferences.isDeleteMediaOnly(context)
+    deleteMediaOnly = TextSecurePreferences.isDeleteMediaOnly(context),
+    blockedContactsCantAddYouToGroups = TextSecurePreferences.blockedContactsCantAddYouToGroups(context)
   )
 
 }

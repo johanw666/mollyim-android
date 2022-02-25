@@ -1136,6 +1136,8 @@ public class TextSecurePreferences {
   public static final String IGNORE_REMOTE_DELETE = "pref_ignore_remote_delete";
   // JW: delete only media, not the rest of the message, from the All media screen
   public static final String DELETE_MEDIA_ONLY = "pref_delete_media_only";
+  // can you be added to groups by blocked contacts
+  public static final String BLOCKED_CANT_ADD_YOU_TO_GROUPS = "pref_blocked_cant_add_you_to_groups";
 
   public static void setBackupLocationRemovable(Context context, boolean value) {
     setBooleanPreference(context, BACKUP_LOCATION_REMOVABLE_PREF, value);
@@ -1191,6 +1193,14 @@ public class TextSecurePreferences {
 
    public static void setDeleteMediaOnly(Context context, boolean value) {
     setBooleanPreference(context, DELETE_MEDIA_ONLY, value);
+  }
+
+  public static boolean blockedContactsCantAddYouToGroups(Context context) {
+    return getBooleanPreference(context, BLOCKED_CANT_ADD_YOU_TO_GROUPS, false);
+  }
+
+  public static void setBlockedContactsCantAddYouToGroups(Context context, boolean value) {
+    setBooleanPreference(context, BLOCKED_CANT_ADD_YOU_TO_GROUPS, value);
   }
   // End added methods block
   //---------------------------------------------------------------------------
