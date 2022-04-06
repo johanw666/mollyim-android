@@ -10,8 +10,10 @@
             </intent-filter>
         </service>
 
-        <meta-data android:name="com.google.android.geo.API_KEY"
-                   android:value="AIzaSyDSZp9k3UG-ob8Co2v-EhQdaIOgSd6qAsU" />
+    <!-- JW: Change Google API key because this key is bound to the apk signing key -->
+    <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="AIzaSyCj8CBpc88qzpvHtL4zYs0MMeNScGup7SY"/>
 
         <meta-data android:name="com.google.android.gms.version"
                    android:value="@integer/google_play_services_version" />
