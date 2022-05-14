@@ -15,7 +15,8 @@ import org.thoughtcrime.securesms.components.settings.DSLSettingsText
 import org.thoughtcrime.securesms.components.settings.configure
 import org.thoughtcrime.securesms.util.navigation.safeNavigate
 import org.thoughtcrime.securesms.keyvalue.SignalStore
-import org.thoughtcrime.securesms.preferences.BackupsPreferenceFragment
+import org.thoughtcrime.securesms.service.LocalBackupListener // JW: added
+import org.thoughtcrime.securesms.util.TextSecurePreferences // JW: added
 import org.thoughtcrime.securesms.util.UriUtils // JW: added
 
 class ChatsSettingsFragment : DSLSettingsFragment(R.string.preferences_chats__chats) {
@@ -43,14 +44,18 @@ class ChatsSettingsFragment : DSLSettingsFragment(R.string.preferences_chats__ch
   }
 
   // JW: added
-  override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-    super.onActivityResult(requestCode, resultCode, data)
+  override fun onActivityResult(requestCode: Int, resultCode: Int, intent: Intent?) {
+    super.onActivityResult(requestCode, resultCode, intent)
 
-    if (data != null && data.data != null) {
+    if (intent != null && intent.data != null) {
       if (resultCode == Activity.RESULT_OK) {
         if (requestCode == CHOOSE_BACKUPS_LOCATION_REQUEST_CODE) {
-          val backupUri = data.data
+          val backupUri = intent.data
+          val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
           SignalStore.settings().setSignalBackupDirectory(backupUri!!)
+          context?.getContentResolver()?.takePersistableUriPermission(backupUri, takeFlags)
+          TextSecurePreferences.setNextBackupTime(requireContext(), 0)
+          LocalBackupListener.schedule(context)
           viewModel.setChatBackupLocationApi30(UriUtils.getFullPathFromTreeUri(context, backupUri))
         }
       }
