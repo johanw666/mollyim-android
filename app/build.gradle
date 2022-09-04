@@ -79,10 +79,14 @@ ktlint {
 }
 
 def canonicalVersionCode = 1119
-def canonicalVersionName = "5.48.3"
+def canonicalVersionName = "5.48.3-1.0-JW"
 def mollyRevision = 0
 
 def postFixSize = 100
+// JW: added
+def abiPostFix = ['universal'   : 0,
+                  'armeabi-v7a' : 1,
+                  'arm64-v8a'   : 2]
 
 def selectableVariants = [
         'prodFreeDebug',
@@ -179,7 +183,8 @@ android {
     }
 
     defaultConfig {
-        versionCode canonicalVersionCode * postFixSize + mollyRevision
+        //versionCode canonicalVersionCode * postFixSize + mollyRevision
+        versionCode canonicalVersionCode * postFixSize + abiPostFix['universal'] + mollyRevision // JW
         versionName project.hasProperty('ci') ? getCommitTag() : canonicalVersionName
 
         minSdkVersion MINIMUM_SDK
@@ -199,8 +204,8 @@ android {
 
         manifestPlaceholders = [mapsApiKey:mapsApiKey]
 
-        buildConfigField "long", "BUILD_TIMESTAMP", getBuildTimestamp() + "L"
-        buildConfigField "String", "GIT_HASH", "\"${getCommitHash()}\""
+        buildConfigField "long", "BUILD_TIMESTAMP", System.currentTimeMillis() + "L" // JW: build without git clone
+        buildConfigField "String", "GIT_HASH", "\"00000\"" // JW: empty string, I don't build from a repository
         buildConfigField "String", "SIGNAL_URL", "\"https://chat.signal.org\""
         buildConfigField "String", "STORAGE_URL", "\"https://storage.signal.org\""
         buildConfigField "String", "SIGNAL_CDN_URL", "\"https://cdn.signal.org\""
@@ -246,7 +251,17 @@ android {
         buildConfigField "String", "BADGE_STATIC_ROOT", "\"https://updates2.signal.org/static/badges/\""
 
         ndk {
-            abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86_64'
+            // abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86_64' // JW
+        }
+
+        // JW: split apk's
+        splits {
+            abi {
+                enable true
+                reset()
+                include 'armeabi-v7a', 'arm64-v8a'
+                universalApk false
+            }
         }
 
         resConfigs autoResConfig()
@@ -363,22 +378,27 @@ android {
         }
     }
 
-    android.applicationVariants.all { variant ->
-        def isStaging = variant.productFlavors*.name.contains("staging")
-        def hasSigningConfig = buildType.signingConfig || variant.signingConfig
-
-        variant.resValue 'string', 'app_name', baseAppTitle + (isStaging ? " Staging" : "")
-        variant.resValue "string", 'package_name', variant.applicationId
-
-        variant.outputs.all {
-            def flavors = variant.baseName - ~/-(free|nonFree)/ - ~/-release/ + (hasSigningConfig ? "" : "-unsigned")
-            outputFileName = "${baseApkFileName}-${flavors}-${versionName}.apk"
-        }
+    // JW: changed naming
+    applicationVariants.all { variant ->
+        variant.resValue "string", "package_name", variant.applicationId
     }
 
-    android.variantFilter { variant ->
-        if (!selectableVariants.contains(variant.name)) {
-            setIgnore(true)
+    android.applicationVariants.all { variant ->
+        def isStaging = variant.productFlavors*.name.contains("staging");
+
+        variant.resValue 'string', 'app_name', isStaging ? baseApkFileName + " Staging" : baseApkFileName
+        variant.resValue "string", 'package_name', variant.applicationId
+
+        // JW: rewrote naming
+        variant.outputs.each { output ->
+            output.outputFileName = output.outputFileName.replace(".apk", "-${variant.versionName}.apk")
+            output.outputFileName = output.outputFileName.replace("app", "MollyIm-Android")
+            def abiName = output.getFilter("ABI") ?: 'universal'
+            def postFix = abiPostFix.get(abiName, 0)
+
+            if (postFix >= postFixSize) throw new GradleException("postFix is too large")
+
+            output.versionCodeOverride = canonicalVersionCode * postFixSize + postFix
         }
     }
 }
@@ -394,6 +414,7 @@ dependencies {
 
     coreLibraryDesugaring libs.android.tools.desugar
 
+    implementation 'net.lingala.zip4j:zip4j:2.11.1' // JW: added
     implementation (libs.androidx.appcompat) {
         version {
             strictly '1.2.0'
