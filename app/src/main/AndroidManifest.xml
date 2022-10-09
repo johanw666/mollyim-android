@@ -30,8 +30,12 @@
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.READ_PHONE_NUMBERS" />
 
+<!-- JW: override for Android 10. For Android 11 we can switch to MANAGE_EXTERNAL_STORAGE permission.
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
                      android:maxSdkVersion="28" />
+-->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
 
     <uses-permission android:name="android.permission.CAMERA" />
 
@@ -106,6 +110,14 @@
     <meta-data android:name="android.webkit.WebView.MetricsOptOut"
                android:value="true" />
 
+    <!-- JW: Add activity used in plaintext backup import / export -->
+    <activity android:name=".ImportExportActivity"
+              android:configChanges="touchscreen|keyboard|keyboardHidden|orientation|screenLayout|screenSize"/>
+
+    <!-- JW: Add activity used in encrypted backup import -->
+    <activity android:name=".ExitActivity"
+              android:theme="@android:style/Theme.NoDisplay" />
+
     <activity android:name=".WebRtcCallActivity"
               android:theme="@style/TextSecure.DarkTheme.WebRTCCall"
               android:excludeFromRecents="true"
@@ -132,8 +144,7 @@
     </activity>
 
     <activity android:name=".DeviceProvisioningActivity"
-              android:configChanges="touchscreen|keyboard|keyboardHidden|orientation|screenLayout|screenSize"
-              android:exported="true">
+              android:configChanges="touchscreen|keyboard|keyboardHidden|orientation|screenLayout|screenSize">
         <intent-filter>
             <action android:name="android.intent.action.VIEW" />
             <category android:name="android.intent.category.DEFAULT" />
@@ -156,10 +167,10 @@
 
     <activity android:name=".sharing.v2.ShareActivity"
               android:theme="@style/Theme.Signal.DayNight.NoActionBar"
-              android:exported="true"
               android:excludeFromRecents="true"
               android:taskAffinity=""
               android:windowSoftInputMode="stateHidden"
+              android:exported="true"
               android:configChanges="touchscreen|keyboard|keyboardHidden|orientation|screenLayout|screenSize">
         <intent-filter>
             <action android:name="android.intent.action.SEND" />
@@ -187,14 +198,13 @@
     </activity>
 
     <activity android:name=".stickers.StickerPackPreviewActivity"
-              android:exported="true"
               android:theme="@style/Theme.Signal.DayNight.NoActionBar"
               android:launchMode="singleTask"
               android:noHistory="true"
               android:windowSoftInputMode="stateHidden"
               android:configChanges="touchscreen|keyboard|keyboardHidden|orientation|screenLayout|screenSize">
         <intent-filter>
-            <action android:name="android.intent.action.VIEW" android:exported="true" />
+            <action android:name="android.intent.action.VIEW" />
             <category android:name="android.intent.category.DEFAULT" />
             <category android:name="android.intent.category.BROWSABLE" />
             <data android:scheme="sgnl"
@@ -231,7 +241,6 @@
     </activity-alias>
 
     <activity android:name=".deeplinks.DeepLinkEntryActivity"
-              android:exported="true"
               android:noHistory="true"
               android:theme="@style/Signal.Transparent">
 
@@ -243,7 +252,8 @@
                   android:host="signal.group" />
         </intent-filter>
 
-        <intent-filter>
+        <intent-filter android:autoVerify="true"
+                       tools:targetApi="23">
             <action android:name="android.intent.action.VIEW" />
             <category android:name="android.intent.category.DEFAULT" />
             <category android:name="android.intent.category.BROWSABLE" />
@@ -344,12 +354,10 @@
             android:configChanges="touchscreen|keyboard|keyboardHidden|orientation|screenLayout|screenSize" />
 
     <activity android:name=".verify.VerifyIdentityActivity"
-              android:exported="false"
               android:theme="@style/Signal.DayNight.NoActionBar"
               android:configChanges="touchscreen|keyboard|keyboardHidden|orientation|screenLayout|screenSize"/>
 
     <activity android:name=".components.settings.app.AppSettingsActivity"
-              android:exported="true"
               android:configChanges="touchscreen|keyboard|keyboardHidden|orientation|screenLayout|screenSize"
               android:theme="@style/Signal.DayNight.NoActionBar"
               android:windowSoftInputMode="adjustResize">
@@ -471,11 +479,10 @@
               android:finishOnTaskLaunch="true" />
 
     <activity android:name=".PlayServicesProblemActivity"
-              android:exported="false"
               android:theme="@style/TextSecure.DialogActivity"
               android:configChanges="touchscreen|keyboard|keyboardHidden|orientation|screenLayout|screenSize"/>
 
-    <activity android:name=".SmsSendtoActivity" android:exported="true">
+    <activity android:name=".SmsSendtoActivity">
         <intent-filter tools:ignore="AppLinkUrlError">
             <action android:name="android.intent.action.VIEW" />
             <category android:name="android.intent.category.DEFAULT" />
@@ -484,7 +491,6 @@
     </activity>
 
     <activity android:name="org.thoughtcrime.securesms.webrtc.VoiceCallShare"
-              android:exported="true"
               android:excludeFromRecents="true"
               android:permission="android.permission.CALL_PHONE"
               android:theme="@style/NoAnimation.Theme.BlackScreen"
@@ -632,13 +638,13 @@
         </intent-filter>
     </service>
 
-    <service android:name=".components.voice.VoiceNotePlaybackService" android:exported="true">
+    <service android:name=".components.voice.VoiceNotePlaybackService">
         <intent-filter>
             <action android:name="android.media.browse.MediaBrowserService" />
         </intent-filter>
     </service>
 
-    <receiver android:name="androidx.media.session.MediaButtonReceiver" android:exported="true">
+    <receiver android:name="androidx.media.session.MediaButtonReceiver" >
         <intent-filter>
             <action android:name="android.intent.action.MEDIA_BUTTON" />
         </intent-filter>
@@ -719,65 +725,63 @@
 
     </provider>
 
-    <receiver android:name=".service.BootReceiver" android:exported="false">
+    <receiver android:name=".service.BootReceiver">
         <intent-filter>
             <action android:name="android.intent.action.BOOT_COMPLETED"/>
             <action android:name="org.thoughtcrime.securesms.RESTART"/>
         </intent-filter>
     </receiver>
 
-    <receiver android:name=".service.DirectoryRefreshListener" android:exported="false">
+    <receiver android:name=".service.DirectoryRefreshListener">
         <intent-filter>
             <action android:name="android.intent.action.BOOT_COMPLETED" />
         </intent-filter>
     </receiver>
 
-    <receiver android:name=".service.RotateSignedPreKeyListener" android:exported="false">
+    <receiver android:name=".service.RotateSignedPreKeyListener">
         <intent-filter>
             <action android:name="android.intent.action.BOOT_COMPLETED" />
         </intent-filter>
     </receiver>
 
-    <receiver android:name=".service.RotateSenderCertificateListener" android:exported="false">
+    <receiver android:name=".service.RotateSenderCertificateListener">
         <intent-filter>
             <action android:name="android.intent.action.BOOT_COMPLETED" />
         </intent-filter>
     </receiver>
 
-    <receiver android:name=".messageprocessingalarm.MessageProcessReceiver" android:exported="false">
+    <receiver android:name=".messageprocessingalarm.MessageProcessReceiver">
         <intent-filter>
             <action android:name="android.intent.action.BOOT_COMPLETED" />
             <action android:name="org.thoughtcrime.securesms.action.PROCESS_MESSAGES" />
         </intent-filter>
     </receiver>
 
-    <receiver android:name=".service.LocalBackupListener" android:exported="false">
+    <receiver android:name=".service.LocalBackupListener">
         <intent-filter>
             <action android:name="android.intent.action.BOOT_COMPLETED" />
         </intent-filter>
     </receiver>
 
-    <receiver android:name=".service.PersistentConnectionBootListener" android:exported="false">
+    <receiver android:name=".service.PersistentConnectionBootListener">
         <intent-filter>
             <action android:name="android.intent.action.BOOT_COMPLETED"/>
         </intent-filter>
     </receiver>
 
-    <!-- MOLLY: Updater-related services imported from Signal website/AndroidManifest.xml -->
-
-    <receiver android:name=".service.UpdateApkRefreshListener" android:exported="false">
+    <receiver android:name=".service.UpdateApkRefreshListener">
         <intent-filter>
             <action android:name="android.intent.action.BOOT_COMPLETED" />
         </intent-filter>
     </receiver>
 
-    <receiver android:name=".service.UpdateApkReadyListener" android:exported="false">
+    <receiver android:name=".service.UpdateApkReadyListener">
         <intent-filter>
             <action android:name="android.intent.action.DOWNLOAD_COMPLETE"/>
         </intent-filter>
     </receiver>
 
-    <receiver android:name=".notifications.LocaleChangedReceiver" android:exported="false">
+    <receiver android:name=".notifications.LocaleChangedReceiver">
         <intent-filter>
             <action android:name="android.intent.action.LOCALE_CHANGED"/>
         </intent-filter>
@@ -785,7 +789,7 @@
 
     <receiver android:name=".notifications.MessageNotifier$ReminderReceiver"/>
 
-    <receiver android:name=".notifications.DeleteNotificationReceiver" android:exported="false">
+    <receiver android:name=".notifications.DeleteNotificationReceiver">
         <intent-filter>
             <action android:name="org.thoughtcrime.securesms.DELETE_NOTIFICATION"/>
         </intent-filter>
@@ -813,13 +817,11 @@
 
     <service
         android:name=".jobmanager.KeepAliveService"
-        android:enabled="@bool/enable_alarm_manager"
-        android:exported="false"/>
+        android:enabled="@bool/enable_alarm_manager" />
 
     <receiver
         android:name=".jobmanager.AlarmManagerScheduler$RetryReceiver"
-        android:enabled="@bool/enable_alarm_manager"
-        android:exported="false"/>
+        android:enabled="@bool/enable_alarm_manager" />
 
     <uses-library android:name="org.apache.http.legacy" android:required="false"/>
 
