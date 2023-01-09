@@ -3153,4 +3153,13 @@ public class MmsTable extends MessageTable {
   private long generatePduCompatTimestamp(long time) {
     return time - (time % 1000);
   }
+
+  // JW: added method. Deletes only the attachment for the message, not the message itself.
+  public boolean deleteAttachmentsOnly(long messageId) {
+    long threadId = getThreadIdForMessage(messageId);
+    AttachmentTable attachmentDatabase = SignalDatabase.attachments();
+    attachmentDatabase.deleteAttachmentsForMessage(messageId);
+    notifyConversationListeners(threadId);
+    return true;
+  }
 }

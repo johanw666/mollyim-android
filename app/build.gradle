@@ -84,10 +84,14 @@ ktlint {
 }
 
 def canonicalVersionCode = 1185
-def canonicalVersionName = "6.6.3"
+def canonicalVersionName = "6.6.3-1.0-JW"
 def mollyRevision = 0
 
 def postFixSize = 100
+// JW: added
+def abiPostFix = ['universal'   : 0,
+                  'armeabi-v7a' : 1,
+                  'arm64-v8a'   : 2]
 
 def selectableVariants = [
         'prodFossWebsiteDebug',
@@ -200,6 +204,7 @@ android {
 
     defaultConfig {
         versionCode canonicalVersionCode * postFixSize + mollyRevision
+        versionCode canonicalVersionCode * postFixSize + abiPostFix['universal'] + mollyRevision // JW
         versionName project.hasProperty('CI') ? getCommitTag() : canonicalVersionName
 
         minSdkVersion MINIMUM_SDK
@@ -219,8 +224,8 @@ android {
 
         manifestPlaceholders = [mapsApiKey:MAPS_API_KEY]
 
-        buildConfigField "long", "BUILD_TIMESTAMP", "${getBuildTimestamp()}L"
-        buildConfigField "String", "GIT_HASH", "\"${getCommitHashOrNull()}\""
+        buildConfigField "long", "BUILD_TIMESTAMP", System.currentTimeMillis() + "L" // JW: build without git clone
+        buildConfigField "String", "GIT_HASH", "\"00000\"" // JW: empty string, I don't build from a repository
         buildConfigField "String", "SIGNAL_URL", "\"https://chat.signal.org\""
         buildConfigField "String", "STORAGE_URL", "\"https://storage.signal.org\""
         buildConfigField "String", "SIGNAL_CDN_URL", "\"https://cdn.signal.org\""
@@ -259,7 +264,17 @@ android {
         buildConfigField "String", "BADGE_STATIC_ROOT", "\"https://updates2.signal.org/static/badges/\""
 
         ndk {
-            abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86_64'
+            // abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86_64' // JW
+        }
+
+        // JW: split apk's
+        splits {
+            abi {
+                enable true
+                reset()
+                include 'armeabi-v7a', 'arm64-v8a'
+                universalApk false
+            }
         }
 
         resConfigs autoResConfig()
@@ -379,24 +394,27 @@ android {
         }
     }
 
+    // JW: changed naming
+    applicationVariants.all { variant ->
+        variant.resValue "string", "package_name", variant.applicationId
+    }
+
     android.applicationVariants.all { variant ->
-        def isStaging = variant.productFlavors*.name.contains("staging")
-        def hasSigningConfig = buildType.signingConfig || variant.signingConfig
+        def isStaging = variant.productFlavors*.name.contains("staging");
 
         variant.resValue 'string', 'app_name', BASE_APP_TITLE + (isStaging ? " Staging" : "")
         variant.resValue "string", 'package_name', variant.applicationId
 
-        variant.outputs.all {
-            def flavors = "-${variant.baseName}" - ~/-prod/ - ~/-(foss|gms)/ - ~/-website/ - ~/-release/
-            def unsigned = hasSigningConfig ? "" : "-unsigned"
-            outputFileName = "${BASE_APP_FILENAME}${flavors}${unsigned}-${versionName}.apk"
-        }
-    }
+        // JW: rewrote naming
+        variant.outputs.each { output ->
+            output.outputFileName = output.outputFileName.replace(".apk", "-${variant.versionName}.apk")
+            output.outputFileName = output.outputFileName.replace("app", "MollyIm-Android")
+            def abiName = output.getFilter("ABI") ?: 'universal'
+            def postFix = abiPostFix.get(abiName, 0) + (mollyRevision * 5)
 
-    android.variantFilter { variant ->
-        def matches = variant.name =~ BUILD_VARIANTS
-        if (!(selectableVariants.contains(variant.name) && matches)) {
-            setIgnore(true)
+            if (postFix >= postFixSize) throw new GradleException("postFix is too large")
+
+            output.versionCodeOverride = canonicalVersionCode * postFixSize + postFix
         }
     }
 }
@@ -412,6 +430,7 @@ dependencies {
 
     coreLibraryDesugaring libs.android.tools.desugar
 
+    implementation 'net.lingala.zip4j:zip4j:2.11.2' // JW: added
     implementation (libs.androidx.appcompat) {
         version {
             strictly '1.5.1'
