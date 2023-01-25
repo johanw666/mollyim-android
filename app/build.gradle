@@ -395,27 +395,30 @@ android {
         }
     }
 
-    // JW: changed naming
-    applicationVariants.all { variant ->
-        variant.resValue "string", "package_name", variant.applicationId
-    }
-
     android.applicationVariants.all { variant ->
-        def isStaging = variant.productFlavors*.name.contains("staging");
+        def isStaging = variant.productFlavors*.name.contains("staging")
+        def hasSigningConfig = buildType.signingConfig || variant.signingConfig
 
         variant.resValue 'string', 'app_name', BASE_APP_TITLE + (isStaging ? " Staging" : "")
         variant.resValue "string", 'package_name', variant.applicationId
 
-        // JW: rewrote naming
-        variant.outputs.each { output ->
-            output.outputFileName = output.outputFileName.replace(".apk", "-${variant.versionName}.apk")
-            output.outputFileName = output.outputFileName.replace("app", "MollyIm-Android")
-            def abiName = output.getFilter("ABI") ?: 'universal'
-            def postFix = abiPostFix.get(abiName, 0) + (mollyRevision * 5)
+        variant.outputs.all { output -> // JW
+            def flavors = "-${variant.baseName}" - ~/-prod/ - ~/-(foss|gms)/ - ~/-website/ - ~/-release/
+            def unsigned = hasSigningConfig ? "" : "-unsigned"
 
-            if (postFix >= postFixSize) throw new GradleException("postFix is too large")
+            def abiName = output.getFilter("ABI") ?: 'universal' // JW
+            def postFix = abiPostFix.get(abiName, 0) + (mollyRevision * 5) // JW
+            versionCodeOverride = canonicalVersionCode * postFixSize + postFix // JW
 
-            output.versionCodeOverride = canonicalVersionCode * postFixSize + postFix
+            outputFileName = "${BASE_APP_FILENAME}${flavors}${unsigned}-${abiName}-${versionName}.apk" // JW
+            outputFileName = outputFileName.replace("${BASE_APP_FILENAME}", "MollyIm-Android") // JW
+        }
+    }
+
+    android.variantFilter { variant ->
+        def matches = variant.name =~ BUILD_VARIANTS
+        if (!(selectableVariants.contains(variant.name) && matches)) {
+            setIgnore(true)
         }
     }
 }
