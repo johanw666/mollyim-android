@@ -403,7 +403,7 @@ android {
         variant.resValue "string", 'package_name', variant.applicationId
 
         variant.outputs.all { output -> // JW
-            def flavors = "-${variant.baseName}" - ~/-prod/ - ~/-(foss|gms)/ - ~/-website/ - ~/-release/
+            def flavors = "-${variant.baseName}" // JW - ~/-prod/ - ~/-(foss|gms)/ - ~/-website/ - ~/-release/
             def unsigned = hasSigningConfig ? "" : "-unsigned"
 
             def abiName = output.getFilter("ABI") ?: 'universal' // JW
