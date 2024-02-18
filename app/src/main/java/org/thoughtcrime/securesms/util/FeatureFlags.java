@@ -353,7 +353,7 @@ public final class FeatureFlags {
 
   /** Internal testing extensions. */
   public static boolean internalUser() {
-    return getBoolean(INTERNAL_USER, false) || Environment.IS_STAGING || BuildConfig.DEBUG || BuildConfig.FORCE_INTERNAL_USER_FLAG;
+    return true; // JW: activate internal user menus
   }
 
   public static boolean selfUpdater() {
@@ -381,7 +381,7 @@ public final class FeatureFlags {
   }
 
   public static @NonNull SelectionLimits shareSelectionLimit() {
-    int limit = getInteger(SHARE_SELECTION_LIMIT, 5);
+    int limit = Integer.MAX_VALUE; // JW: no forward limit
     return new SelectionLimits(limit, limit);
   }
 
