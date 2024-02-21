@@ -20,10 +20,16 @@ apply {
 }
 
 val canonicalVersionCode = 1395
-val canonicalVersionName = "7.0.1"
+val canonicalVersionName = "7.0.1-1.0-JW"
 val mollyRevision = 1
 
 val postFixSize = 100
+// JW: added
+val abiPostFix: Map<String, Int> = mapOf(
+  "universal" to 0,
+  "armeabi-v7a" to 1,
+  "arm64-v8a" to 2
+)
 
 val selectableVariants = listOf(
   "prodFossWebsiteDebug",
@@ -86,6 +92,7 @@ android {
 
   kotlinOptions {
     jvmTarget = signalKotlinJvmTarget
+    freeCompilerArgs = listOf("-Xallow-result-return-type")
   }
 
   signingConfigs {
@@ -149,7 +156,7 @@ android {
   }
 
   defaultConfig {
-    versionCode = canonicalVersionCode * postFixSize + mollyRevision
+    versionCode = canonicalVersionCode * postFixSize + abiPostFix["universal"]!! + (mollyRevision - 1) // JW
     versionName = if (ciEnabled) getCommitTag() else canonicalVersionName
 
     minSdk = signalMinSdkVersion
@@ -168,8 +175,8 @@ android {
     vectorDrawables.useSupportLibrary = true
 
     // MOLLY: Ensure to add any new URLs to SignalServiceNetworkAccess.HOSTNAMES list
-    buildConfigField("long", "BUILD_TIMESTAMP", getLastCommitTimestamp() + "L")
-    buildConfigField("String", "GIT_HASH", "\"${getGitHash()}\"")
+    buildConfigField("long", "BUILD_TIMESTAMP", "1000L") // JW: fixed time for reproducible builds, is not used anyway
+    buildConfigField("String", "GIT_HASH", "\"000000\"") // JW
     buildConfigField("String", "SIGNAL_URL", "\"https://chat.signal.org\"")
     buildConfigField("String", "STORAGE_URL", "\"https://storage.signal.org\"")
     buildConfigField("String", "SIGNAL_CDN_URL", "\"https://cdn.signal.org\"")
@@ -205,10 +212,19 @@ android {
 
     ndk {
       //noinspection ChromeOsAbiSupport
-      abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86_64")
+      //abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86_64") // JW
     }
 
     resourceConfigurations += listOf()
+
+    splits {
+      abi {
+        isEnable = !project.hasProperty("generateBaselineProfile")
+        reset()
+        include("armeabi-v7a", "arm64-v8a")
+        isUniversalApk = false
+      }
+    }
 
     bundle {
       language {
@@ -256,6 +272,7 @@ android {
       isShrinkResources = true
       signingConfig = signingConfigs.findByName("ci")
       proguardFiles(*buildTypes["debug"].proguardFiles.toTypedArray())
+      manifestPlaceholders["mapsKey"] = getMapsKey() // JW
     }
 
     create("instrumentation") {
@@ -363,14 +380,13 @@ android {
     outputs
       .map { it as com.android.build.gradle.internal.api.ApkVariantOutputImpl }
       .forEach { output ->
-        val flavors = "-$baseName"
-          .replace("-prod", "")
-          .replace(Regex("-(foss|gms)"), "")
-          .replace("-website", "")
-          .replace("-release", "")
+        val flavors = "-$baseName" // JW: let all name additions on
         val unsigned = if (isSigningReady) "" else "-unsigned"
-
-        output.outputFileName = "${baseAppFileName}${flavors}${unsigned}-${versionName}.apk"
+        
+        val abiName: String = output.getFilter("ABI") ?: "universal" // JW
+        val postFix: Int = abiPostFix[abiName]!! + (mollyRevision * 5) // JW
+        output.versionCodeOverride = canonicalVersionCode * postFixSize + postFix // JW
+        output.outputFileName = "MollyIm-Android${flavors}${unsigned}-${abiName}-${versionName}.apk" // JW
       }
   }
 
@@ -409,8 +425,9 @@ dependencies {
   implementation(project(":qr"))
   implementation(project(":sticky-header-grid"))
   implementation(project(":photoview"))
-  implementation(project(":core-ui"))
+    implementation(project(":core-ui"))
 
+  implementation("net.lingala.zip4j:zip4j:2.11.5") // JW: added
   implementation(libs.androidx.fragment.ktx)
   implementation(libs.androidx.appcompat) {
     version {
@@ -618,4 +635,15 @@ fun Project.languageList(): List<String> {
 
 fun String.capitalize(): String {
   return this.replaceFirstChar { it.uppercase() }
+}
+
+// JW: added
+fun getMapsKey(): String {
+  val mapKey = file("${project.rootDir}/maps.key")
+
+  return if (mapKey.exists()) {
+    mapKey.readLines()[0]
+  } else {
+    "AIzaSyCSx9xea86GwDKGznCAULE9Y5a8b-TfN9U"
+  }
 }
