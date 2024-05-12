@@ -3,6 +3,7 @@ package org.thoughtcrime.securesms.database
 import android.annotation.SuppressLint
 import android.content.Context
 import android.database.Cursor
+import androidx.compose.runtime.Immutable
 import org.signal.core.util.requireInt
 import org.signal.core.util.requireLong
 import org.signal.core.util.requireNonNullString
@@ -92,6 +93,8 @@ class MediaTable internal constructor(context: Context?, databaseHelper: SignalD
         GROUP BY ${AttachmentTable.DATA_FILE}
       """
 
+// JW: don't remove link preview media from the list, we want to be able to selectively delete it.
+/*
     private val GALLERY_MEDIA_QUERY = String.format(
       BASE_MEDIA_QUERY,
       """
@@ -111,6 +114,24 @@ class MediaTable internal constructor(context: Context?, databaseHelper: SignalD
         ${MessageTable.LINK_PREVIEWS} IS NULL
       """
     )
+*/
+    private val GALLERY_MEDIA_QUERY = String.format(
+      BASE_MEDIA_QUERY,
+      """
+        ${AttachmentTable.DATA_FILE} IS NOT NULL AND
+        ${AttachmentTable.CONTENT_TYPE} NOT LIKE 'image/svg%' AND 
+        (${AttachmentTable.CONTENT_TYPE} LIKE 'image/%' OR ${AttachmentTable.CONTENT_TYPE} LIKE 'video/%')
+      """
+    )
+
+    private val GALLERY_MEDIA_QUERY_INCLUDING_TEMP_VIDEOS = String.format(
+      BASE_MEDIA_QUERY,
+      """
+        (${AttachmentTable.DATA_FILE} IS NOT NULL OR (${AttachmentTable.CONTENT_TYPE} LIKE 'video/%' AND ${AttachmentTable.REMOTE_INCREMENTAL_DIGEST} IS NOT NULL)) AND
+        ${AttachmentTable.CONTENT_TYPE} NOT LIKE 'image/svg%' AND 
+        (${AttachmentTable.CONTENT_TYPE} LIKE 'image/%' OR ${AttachmentTable.CONTENT_TYPE} LIKE 'video/%')
+      """
+    )
 
     private val AUDIO_MEDIA_QUERY = String.format(
       BASE_MEDIA_QUERY,
@@ -120,6 +141,8 @@ class MediaTable internal constructor(context: Context?, databaseHelper: SignalD
       """
     )
 
+// JW
+/*
     private val ALL_MEDIA_QUERY = String.format(
       BASE_MEDIA_QUERY,
       """
@@ -128,6 +151,8 @@ class MediaTable internal constructor(context: Context?, databaseHelper: SignalD
         ${MessageTable.LINK_PREVIEWS} IS NULL
       """
     )
+*/
+    private val ALL_MEDIA_QUERY = String.format(BASE_MEDIA_QUERY, "${AttachmentTable.DATA_FILE} IS NOT NULL AND ${AttachmentTable.CONTENT_TYPE} NOT LIKE 'text/x-signal-plain'")
 
     private val DOCUMENT_MEDIA_QUERY = String.format(
       BASE_MEDIA_QUERY,
@@ -302,6 +327,7 @@ class MediaTable internal constructor(context: Context?, databaseHelper: SignalD
     }
   }
 
+  @Immutable
   data class StorageBreakdown(
     val photoSize: Long,
     val videoSize: Long,
