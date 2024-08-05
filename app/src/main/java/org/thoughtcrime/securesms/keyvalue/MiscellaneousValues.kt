@@ -68,7 +68,7 @@ class MiscellaneousValues internal constructor(store: KeyValueStore) : SignalSto
   /**
    * Whether or not the client is currently in a 'deprecated' state, disallowing network access.
    */
-  var isClientDeprecated: Boolean by booleanValue(CLIENT_DEPRECATED, false)
+  var isClientDeprecated: Boolean = false // JW
 
   /**
    * Whether or not we've locked the device after they've transferred to a new one.
@@ -244,6 +244,6 @@ class MiscellaneousValues internal constructor(store: KeyValueStore) : SignalSto
    * When the next scheduled database analysis is.
    */
   var nextDatabaseAnalysisTime: Long by longValue(NEXT_DATABASE_ANALYSIS_TIME, 0)
-
+  
   var lastNetworkResetDueToStreamResets: Long by longValue(LAST_NETWORK_RESET_TIME, 0L)
 }
