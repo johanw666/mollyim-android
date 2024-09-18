@@ -1,53 +1,52 @@
-import com.android.build.api.dsl.ManagedVirtualDevice
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import java.io.ByteArrayOutputStream
-import java.io.FileInputStream
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Properties
 
 plugins {
   id("com.android.application")
   id("kotlin-android")
   id("androidx.navigation.safeargs")
-  id("org.jlleitschuh.gradle.ktlint")
   id("org.jetbrains.kotlin.android")
   id("app.cash.exhaustive")
   id("kotlin-parcelize")
   id("com.squareup.wire")
-  id("translations")
-  id("licenses")
+  id("molly")
 }
 
-apply(from = "static-ips.gradle.kts")
+// Sort baseline.profm for reproducible builds
+// See issue: https://issuetracker.google.com/issues/231837768
+apply {
+  from("fix-profm.gradle")
+}
 
 val canonicalVersionCode = 1459
-val canonicalVersionName = "7.17.2"
+val canonicalVersionName = "7.17.2-1.0-JW"
+val mollyRevision = 1
 val currentHotfixVersion = 0
 val maxHotfixVersions = 100
+// JW: added
+val abiPostFix: Map<String, Int> = mapOf(
+  "universal" to 0,
+  "armeabi-v7a" to 1,
+  "arm64-v8a" to 2
+)
 
-val keystores: Map<String, Properties?> = mapOf("debug" to loadKeystoreProperties("keystore.debug.properties"))
+
+val sourceVersionNameWithRevision = "${canonicalVersionName}" // JW -${mollyRevision}"
 
 val selectableVariants = listOf(
-  "nightlyProdSpinner",
-  "nightlyProdPerf",
-  "nightlyProdRelease",
-  "nightlyStagingRelease",
-  "playProdDebug",
-  "playProdSpinner",
-  "playProdCanary",
-  "playProdPerf",
-  "playProdBenchmark",
-  "playProdInstrumentation",
-  "playProdRelease",
-  "playStagingDebug",
-  "playStagingCanary",
-  "playStagingSpinner",
-  "playStagingPerf",
-  "playStagingInstrumentation",
-  "playStagingRelease",
-  "websiteProdSpinner",
-  "websiteProdRelease"
+  "prodFossWebsiteDebug",
+  "prodFossWebsiteRelease",
+  "prodFossStoreDebug",
+  "prodFossStoreRelease",
+  "prodGmsWebsiteDebug",
+  "prodGmsWebsiteRelease",
+  "prodGmsWebsiteCanary",
+  "prodGmsWebsiteInstrumentation",
+  "prodGmsWebsiteSpinner",
+  "stagingFossWebsiteDebug",
+  "stagingFossWebsiteRelease",
+  "stagingGmsWebsiteDebug",
+  "stagingGmsWebsiteRelease",
 )
 
 val signalBuildToolsVersion: String by rootProject.extra
@@ -57,6 +56,18 @@ val signalMinSdkVersion: Int by rootProject.extra
 val signalNdkVersion: String by rootProject.extra
 val signalJavaVersion: JavaVersion by rootProject.extra
 val signalKotlinJvmTarget: String by rootProject.extra
+
+// Override build config via env vars when project property 'CI' is set
+val ciEnabled = project.hasProperty("CI")
+
+val baseAppTitle = getCiEnv("CI_APP_TITLE") ?: properties["baseAppTitle"] as String
+val baseAppFileName = getCiEnv("CI_APP_FILENAME") ?: properties["baseAppFileName"] as String
+val basePackageId = getCiEnv("CI_PACKAGE_ID") ?: properties["basePackageId"] as String
+val buildVariants = getCiEnv("CI_BUILD_VARIANTS") ?: properties["buildVariants"] as String
+val forceInternalUserFlag = getCiEnv("CI_FORCE_INTERNAL_USER_FLAG") ?: properties["forceInternalUserFlag"] as String
+val mapsApiKey = getCiEnv("CI_MAPS_API_KEY") ?: properties["mapsApiKey"] as String
+
+fun getCiEnv(name: String) = if (ciEnabled) System.getenv(name).takeUnless { it.isNullOrBlank() } else null
 
 wire {
   kotlin {
@@ -72,10 +83,6 @@ wire {
   }
 }
 
-ktlint {
-  version.set("1.2.1")
-}
-
 android {
   namespace = "org.thoughtcrime.securesms"
 
@@ -83,7 +90,7 @@ android {
   compileSdkVersion = signalCompileSdkVersion
   ndkVersion = signalNdkVersion
 
-  flavorDimensions += listOf("distribution", "environment")
+  flavorDimensions += listOf("environment", "license", "distribution")
   useLibrary("org.apache.http.legacy")
   testBuildType = "instrumentation"
 
@@ -94,12 +101,16 @@ android {
     freeCompilerArgs = listOf("-Xjvm-default=all")
   }
 
-  keystores["debug"]?.let { properties ->
-    signingConfigs.getByName("debug").apply {
-      storeFile = file("${project.rootDir}/${properties.getProperty("storeFile")}")
-      storePassword = properties.getProperty("storePassword")
-      keyAlias = properties.getProperty("keyAlias")
-      keyPassword = properties.getProperty("keyPassword")
+  signingConfigs {
+    System.getenv("CI_KEYSTORE_PATH")?.let { path ->
+      create("ci") {
+        println("Signing release build with keystore: '$path'")
+        storeFile = file(path)
+        storePassword = System.getenv("CI_KEYSTORE_PASSWORD")
+        keyAlias = System.getenv("CI_KEYSTORE_ALIAS")
+        keyPassword = System.getenv("CI_KEYSTORE_PASSWORD")
+        enableV4Signing = false
+      }
     }
   }
 
@@ -108,17 +119,6 @@ android {
 
     unitTests {
       isIncludeAndroidResources = true
-    }
-
-    managedDevices {
-      devices {
-        create<ManagedVirtualDevice>("pixel3api30") {
-          device = "Pixel 3"
-          apiLevel = 30
-          systemImageSource = "google-atd"
-          require64Bit = false
-        }
-      }
     }
   }
 
@@ -144,6 +144,8 @@ android {
         "**/*.dylib",
         "**/*.dll"
       )
+      // MOLLY: Compress native libs by default as APK is not split on ABIs
+      useLegacyPackaging = true
     }
     resources {
       excludes += setOf(
@@ -171,22 +173,32 @@ android {
     kotlinCompilerExtensionVersion = "1.5.4"
   }
 
+  if (mollyRevision < 0 || currentHotfixVersion < 0 || (mollyRevision + currentHotfixVersion) >= maxHotfixVersions) {
+    throw GradleException("Molly revision $mollyRevision or Hotfix version $currentHotfixVersion out of range")
+  }
+
   defaultConfig {
-    versionCode = (canonicalVersionCode * maxHotfixVersions) + currentHotfixVersion
-    versionName = canonicalVersionName
+    versionCode = (canonicalVersionCode * maxHotfixVersions) + mollyRevision + currentHotfixVersion
+    versionName = if (ciEnabled) getCommitTag() else sourceVersionNameWithRevision
 
     minSdk = signalMinSdkVersion
     targetSdk = signalTargetSdkVersion
 
+    applicationId = basePackageId
+
     multiDexEnabled = true
 
+    buildConfigField("String", "SIGNAL_PACKAGE_NAME", "\"org.thoughtcrime.securesms\"")
+    buildConfigField("String", "SIGNAL_CANONICAL_VERSION_NAME", "\"$canonicalVersionName\"")
+    buildConfigField("int", "SIGNAL_CANONICAL_VERSION_CODE", "$canonicalVersionCode")
+    buildConfigField("String", "BACKUP_FILENAME", "\"${baseAppFileName.lowercase()}\"")
+    buildConfigField("boolean", "FORCE_INTERNAL_USER_FLAG", forceInternalUserFlag)
+
     vectorDrawables.useSupportLibrary = true
-    project.ext.set("archivesBaseName", "Signal")
 
-    manifestPlaceholders["mapsKey"] = "AIzaSyCSx9xea86GwDKGznCAULE9Y5a8b-TfN9U"
-
-    buildConfigField("long", "BUILD_TIMESTAMP", getLastCommitTimestamp() + "L")
-    buildConfigField("String", "GIT_HASH", "\"${getGitHash()}\"")
+    // MOLLY: Ensure to add any new URLs to SignalServiceNetworkAccess.HOSTNAMES list
+    buildConfigField("long", "BUILD_OR_ZERO_TIMESTAMP", "1000L") // JW: fixed time for reproducible builds, is not used anyway
+    buildConfigField("String", "GIT_HASH", "\"000000\"") // JW
     buildConfigField("String", "SIGNAL_URL", "\"https://chat.signal.org\"")
     buildConfigField("String", "STORAGE_URL", "\"https://storage.signal.org\"")
     buildConfigField("String", "SIGNAL_CDN_URL", "\"https://cdn.signal.org\"")
@@ -201,15 +213,6 @@ android {
     buildConfigField("String[]", "SIGNAL_SFU_INTERNAL_URLS", "new String[]{\"https://sfu.test.voip.signal.org\", \"https://sfu.staging.voip.signal.org\", \"https://sfu.staging.test.voip.signal.org\"}")
     buildConfigField("String", "CONTENT_PROXY_HOST", "\"contentproxy.signal.org\"")
     buildConfigField("int", "CONTENT_PROXY_PORT", "443")
-    buildConfigField("String[]", "SIGNAL_SERVICE_IPS", rootProject.extra["service_ips"] as String)
-    buildConfigField("String[]", "SIGNAL_STORAGE_IPS", rootProject.extra["storage_ips"] as String)
-    buildConfigField("String[]", "SIGNAL_CDN_IPS", rootProject.extra["cdn_ips"] as String)
-    buildConfigField("String[]", "SIGNAL_CDN2_IPS", rootProject.extra["cdn2_ips"] as String)
-    buildConfigField("String[]", "SIGNAL_CDN3_IPS", rootProject.extra["cdn3_ips"] as String)
-    buildConfigField("String[]", "SIGNAL_SFU_IPS", rootProject.extra["sfu_ips"] as String)
-    buildConfigField("String[]", "SIGNAL_CONTENT_PROXY_IPS", rootProject.extra["content_proxy_ips"] as String)
-    buildConfigField("String[]", "SIGNAL_CDSI_IPS", rootProject.extra["cdsi_ips"] as String)
-    buildConfigField("String[]", "SIGNAL_SVR2_IPS", rootProject.extra["svr2_ips"] as String)
     buildConfigField("String", "SIGNAL_AGENT", "\"OWA\"")
     buildConfigField("String", "CDSI_MRENCLAVE", "\"0f6fd79cdfdaa5b2e6337f534d3baf999318b0c462a7ac1f41297a3e4b424a57\"")
     buildConfigField("String", "SVR2_MRENCLAVE", "\"a6622ad4656e1abcd0bc0ff17c229477747d2ded0495c4ebee7ed35c1789fa97\"")
@@ -218,7 +221,6 @@ android {
     buildConfigField("String", "GENERIC_SERVER_PUBLIC_PARAMS", "\"AByD873dTilmOSG0TjKrvpeaKEsUmIO8Vx9BeMmftwUs9v7ikPwM8P3OHyT0+X3EUMZrSe9VUp26Wai51Q9I8mdk0hX/yo7CeFGJyzoOqn8e/i4Ygbn5HoAyXJx5eXfIbqpc0bIxzju4H/HOQeOpt6h742qii5u/cbwOhFZCsMIbElZTaeU+BWMBQiZHIGHT5IE0qCordQKZ5iPZom0HeFa8Yq0ShuEyAl0WINBiY6xE3H/9WnvzXBbMuuk//eRxXgzO8ieCeK8FwQNxbfXqZm6Ro1cMhCOF3u7xoX83QhpN\"")
     buildConfigField("String", "BACKUP_SERVER_PUBLIC_PARAMS", "\"AJwNSU55fsFCbgaxGRD11wO1juAs8Yr5GF8FPlGzzvdJJIKH5/4CC7ZJSOe3yL2vturVaRU2Cx0n751Vt8wkj1bozK3CBV1UokxV09GWf+hdVImLGjXGYLLhnI1J2TWEe7iWHyb553EEnRb5oxr9n3lUbNAJuRmFM7hrr0Al0F0wrDD4S8lo2mGaXe0MJCOM166F8oYRQqpFeEHfiLnxA1O8ZLh7vMdv4g9jI5phpRBTsJ5IjiJrWeP0zdIGHEssUeprDZ9OUJ14m0v61eYJMKsf59Bn+mAT2a7YfB+Don9O\"")
     buildConfigField("String[]", "LANGUAGES", "new String[]{ ${languageList().map { "\"$it\"" }.joinToString(separator = ", ")} }")
-    buildConfigField("int", "CANONICAL_VERSION_CODE", "$canonicalVersionCode")
     buildConfigField("String", "DEFAULT_CURRENCIES", "\"EUR,AUD,GBP,CAD,CNY\"")
     buildConfigField("String", "GIPHY_API_KEY", "\"3o6ZsYH6U6Eri53TXy\"")
     buildConfigField("String", "SIGNAL_CAPTCHA_URL", "\"https://signalcaptchas.org/registration/generate.html\"")
@@ -226,25 +228,24 @@ android {
     buildConfigField("org.signal.libsignal.net.Network.Environment", "LIBSIGNAL_NET_ENV", "org.signal.libsignal.net.Network.Environment.PRODUCTION")
     buildConfigField("int", "LIBSIGNAL_LOG_LEVEL", "org.signal.libsignal.protocol.logging.SignalProtocolLogger.INFO")
 
-    buildConfigField("String", "BUILD_DISTRIBUTION_TYPE", "\"unset\"")
-    buildConfigField("String", "BUILD_ENVIRONMENT_TYPE", "\"unset\"")
-    buildConfigField("String", "BUILD_VARIANT_TYPE", "\"unset\"")
+    // MOLLY: Rely on the built-in variables FLAVOR and BUILD_TYPE instead of BUILD_*_TYPE
     buildConfigField("String", "BADGE_STATIC_ROOT", "\"https://updates2.signal.org/static/badges/\"")
     buildConfigField("String", "STRIPE_PUBLISHABLE_KEY", "\"pk_live_6cmGZopuTsV8novGgJJW9JpC00vLIgtQ1D\"")
     buildConfigField("boolean", "TRACING_ENABLED", "false")
-    buildConfigField("boolean", "MESSAGE_BACKUP_RESTORE_ENABLED", "false")
 
     ndk {
-      abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+      //noinspection ChromeOsAbiSupport
+      //abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86_64") // JW
     }
+
     resourceConfigurations += listOf()
 
-    splits {
+    splits { // JW
       abi {
         isEnable = !project.hasProperty("generateBaselineProfile")
         reset()
-        include("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
-        isUniversalApk = true
+        include("armeabi-v7a", "arm64-v8a")
+        isUniversalApk = false
       }
     }
 
@@ -254,9 +255,6 @@ android {
 
   buildTypes {
     getByName("debug") {
-      if (keystores["debug"] != null) {
-        signingConfig = signingConfigs["debug"]
-      }
       isDefault = true
       isMinifyEnabled = false
       proguardFiles(
@@ -285,15 +283,16 @@ android {
         "proguard/proguard.cfg"
       )
 
-      manifestPlaceholders["mapsKey"] = getMapsKey()
-
-      buildConfigField("String", "BUILD_VARIANT_TYPE", "\"Debug\"")
+      buildConfigField("long", "BUILD_OR_ZERO_TIMESTAMP", "0L")
+      buildConfigField("String", "GIT_HASH", "\"abc123def456\"")
     }
 
     getByName("release") {
       isMinifyEnabled = true
+      isShrinkResources = true
+      signingConfig = signingConfigs.findByName("ci")
       proguardFiles(*buildTypes["debug"].proguardFiles.toTypedArray())
-      buildConfigField("String", "BUILD_VARIANT_TYPE", "\"Release\"")
+      manifestPlaceholders["mapsKey"] = getMapsKey() // JW
     }
 
     create("instrumentation") {
@@ -302,8 +301,6 @@ android {
       isMinifyEnabled = false
       matchingFallbacks += "debug"
       applicationIdSuffix = ".instrumentation"
-
-      buildConfigField("String", "BUILD_VARIANT_TYPE", "\"Instrumentation\"")
     }
 
     create("spinner") {
@@ -311,27 +308,6 @@ android {
       isDefault = false
       isMinifyEnabled = false
       matchingFallbacks += "debug"
-      buildConfigField("String", "BUILD_VARIANT_TYPE", "\"Spinner\"")
-    }
-
-    create("perf") {
-      initWith(getByName("debug"))
-      isDefault = false
-      isDebuggable = false
-      isMinifyEnabled = true
-      matchingFallbacks += "debug"
-      buildConfigField("String", "BUILD_VARIANT_TYPE", "\"Perf\"")
-      buildConfigField("boolean", "TRACING_ENABLED", "true")
-    }
-
-    create("benchmark") {
-      initWith(getByName("debug"))
-      isDefault = false
-      isDebuggable = false
-      isMinifyEnabled = true
-      matchingFallbacks += "debug"
-      buildConfigField("String", "BUILD_VARIANT_TYPE", "\"Benchmark\"")
-      buildConfigField("boolean", "TRACING_ENABLED", "true")
     }
 
     create("canary") {
@@ -339,38 +315,36 @@ android {
       isDefault = false
       isMinifyEnabled = false
       matchingFallbacks += "debug"
-      buildConfigField("String", "BUILD_VARIANT_TYPE", "\"Canary\"")
     }
   }
 
   productFlavors {
-    create("play") {
+    create("store") {
       dimension = "distribution"
-      isDefault = true
-      buildConfigField("boolean", "MANAGES_APP_UPDATES", "false")
-      buildConfigField("String", "APK_UPDATE_MANIFEST_URL", "null")
-      buildConfigField("String", "BUILD_DISTRIBUTION_TYPE", "\"play\"")
+      buildConfigField("boolean", "MANAGES_MOLLY_UPDATES", "false")
     }
 
     create("website") {
       dimension = "distribution"
-      buildConfigField("boolean", "MANAGES_APP_UPDATES", "true")
-      buildConfigField("String", "APK_UPDATE_MANIFEST_URL", "\"https://updates.signal.org/android/latest.json\"")
-      buildConfigField("String", "BUILD_DISTRIBUTION_TYPE", "\"website\"")
+      isDefault = true
+      buildConfigField("boolean", "MANAGES_MOLLY_UPDATES", "true")
     }
 
-    create("nightly") {
-      val apkUpdateManifestUrl = if (file("${project.rootDir}/nightly-url.txt").exists()) {
-        file("${project.rootDir}/nightly-url.txt").readText().trim()
-      } else {
-        "<unset>"
-      }
+    create("gms") {
+      dimension = "license"
+      isDefault = true
+      manifestPlaceholders["mapsApiKey"] = mapsApiKey
+      buildConfigField("boolean", "USE_PLAY_SERVICES", "true")
+      buildConfigField("boolean", "USE_OSM", "false")
+      buildConfigField("String", "FDROID_UPDATE_URL", "\"https://molly.im/fdroid/repo\"")
+    }
 
-      dimension = "distribution"
-      versionNameSuffix = "-nightly-untagged-${getDateSuffix()}"
-      buildConfigField("boolean", "MANAGES_APP_UPDATES", "true")
-      buildConfigField("String", "APK_UPDATE_MANIFEST_URL", "\"${apkUpdateManifestUrl}\"")
-      buildConfigField("String", "BUILD_DISTRIBUTION_TYPE", "\"nightly\"")
+    create("foss") {
+      dimension = "license"
+      versionNameSuffix = "-FOSS"
+      buildConfigField("boolean", "USE_PLAY_SERVICES", "false")
+      buildConfigField("boolean", "USE_OSM", "true")
+      buildConfigField("String", "FDROID_UPDATE_URL", "\"https://molly.im/fdroid/foss/repo\"")
     }
 
     create("prod") {
@@ -379,13 +353,14 @@ android {
       isDefault = true
 
       buildConfigField("String", "MOBILE_COIN_ENVIRONMENT", "\"mainnet\"")
-      buildConfigField("String", "BUILD_ENVIRONMENT_TYPE", "\"Prod\"")
     }
 
     create("staging") {
       dimension = "environment"
 
       applicationIdSuffix = ".staging"
+
+      buildConfigField("String", "SIGNAL_PACKAGE_NAME", "\"org.thoughtcrime.securesms.staging\"")
 
       buildConfigField("String", "SIGNAL_URL", "\"https://chat.staging.signal.org\"")
       buildConfigField("String", "STORAGE_URL", "\"https://storage-staging.signal.org\"")
@@ -407,45 +382,40 @@ android {
 
       buildConfigField("String", "BUILD_ENVIRONMENT_TYPE", "\"Staging\"")
       buildConfigField("String", "STRIPE_PUBLISHABLE_KEY", "\"pk_test_sngOd8FnXNkpce9nPXawKrJD00kIDngZkD\"")
-      buildConfigField("boolean", "MESSAGE_BACKUP_RESTORE_ENABLED", "true")
     }
   }
 
   lint {
     abortOnError = true
     baseline = file("lint-baseline.xml")
-    checkReleaseBuilds = false
     disable += "LintError"
   }
 
   applicationVariants.all {
+    val isStaging = productFlavors.any { it.name == "staging" }
+
+    resValue("string", "app_name", baseAppTitle + if (isStaging) " Staging" else "")
+    resValue("string", "package_name", applicationId)
+
     outputs
       .map { it as com.android.build.gradle.internal.api.ApkVariantOutputImpl }
       .forEach { output ->
-        if (output.baseName.contains("nightly")) {
-          var tag = getCurrentGitTag()
-          if (!tag.isNullOrEmpty()) {
-            if (tag.startsWith("v")) {
-              tag = tag.substring(1)
-            }
-            output.versionNameOverride = tag
-            output.outputFileName = output.outputFileName.replace(".apk", "-${output.versionNameOverride}.apk")
-          } else {
-            output.outputFileName = output.outputFileName.replace(".apk", "-$versionName.apk")
-          }
-        } else {
-          output.outputFileName = output.outputFileName.replace(".apk", "-$versionName.apk")
-
-          if (currentHotfixVersion >= maxHotfixVersions) {
-            throw AssertionError("Hotfix version is too large!")
-          }
-        }
+        val flavors = "-$baseName" // JW: let all name additions on
+        val unsigned = if (isSigningReady) "" else "-unsigned"
+        
+        val abiName: String = output.getFilter("ABI") ?: "universal" // JW
+        val postFix: Int = abiPostFix[abiName]!! + (mollyRevision * 5) // JW
+        output.versionCodeOverride = canonicalVersionCode * maxHotfixVersions + postFix // JW
+        output.outputFileName = "MollyIm-Android${flavors}${unsigned}-${abiName}-${versionName}.apk" // JW
       }
   }
 
   androidComponents {
     beforeVariants { variant ->
-      variant.enable = variant.name in selectableVariants
+      val selected = variant.name in selectableVariants
+      if (!(selected && buildVariants.toRegex().containsMatchIn(variant.name))) {
+        variant.enable = false
+      }
     }
     onVariants { variant ->
       // Include the test-only library on debug builds.
@@ -468,7 +438,6 @@ android {
 
 dependencies {
   lintChecks(project(":lintchecks"))
-  ktlintRuleset(libs.ktlint.twitter.compose)
   coreLibraryDesugaring(libs.android.tools.desugar)
 
   implementation(project(":libsignal-service"))
@@ -485,6 +454,7 @@ dependencies {
   implementation(project(":photoview"))
   implementation(project(":core-ui"))
 
+  implementation("net.lingala.zip4j:zip4j:2.11.5") // JW: added
   implementation(libs.androidx.fragment.ktx)
   implementation(libs.androidx.appcompat) {
     version {
@@ -529,19 +499,21 @@ dependencies {
   implementation(libs.androidx.asynclayoutinflater)
   implementation(libs.androidx.asynclayoutinflater.appcompat)
   implementation(libs.androidx.emoji2)
-  implementation(libs.firebase.messaging) {
+  implementation(libs.androidx.webkit)
+  "gmsImplementation"(libs.firebase.messaging) {
     exclude(group = "com.google.firebase", module = "firebase-core")
     exclude(group = "com.google.firebase", module = "firebase-analytics")
     exclude(group = "com.google.firebase", module = "firebase-measurement-connector")
   }
-  implementation(libs.google.play.services.maps)
-  implementation(libs.google.play.services.auth)
+  "gmsImplementation"(libs.google.play.services.maps)
+  "gmsImplementation"(libs.google.play.services.auth)
+  "fossImplementation"(project(":libfakegms"))
   implementation(libs.bundles.media3)
   implementation(libs.conscrypt.android)
   implementation(libs.signal.aesgcmprovider)
   implementation(libs.libsignal.android)
   implementation(libs.mobilecoin)
-  implementation(libs.signal.ringrtc)
+  implementation(libs.molly.ringrtc)
   implementation(libs.leolin.shortcutbadger)
   implementation(libs.emilsjolander.stickylistheaders)
   implementation(libs.apache.httpclient.android)
@@ -572,15 +544,21 @@ dependencies {
   implementation(libs.accompanist.permissions)
   implementation(libs.kotlin.stdlib.jdk8)
   implementation(libs.kotlin.reflect)
-  implementation(libs.kotlinx.coroutines.play.services)
+  "gmsImplementation"(libs.kotlinx.coroutines.play.services)
   implementation(libs.kotlinx.coroutines.rx3)
   implementation(libs.jackson.module.kotlin)
   implementation(libs.rxjava3.rxandroid)
   implementation(libs.rxjava3.rxkotlin)
   implementation(libs.rxdogtag)
 
-  "playImplementation"(project(":billing"))
-  "nightlyImplementation"(project(":billing"))
+  implementation(project(":libnetcipher"))
+  implementation(libs.molly.argon2) { artifact { type = "aar" } }
+  implementation(libs.molly.native.utils)
+  implementation(libs.molly.glide.webp.decoder)
+  implementation(libs.gosimple.nbvcxz)
+  "fossImplementation"("org.osmdroid:osmdroid-android:6.1.16")
+
+  "gmsImplementation"(project(":billing"))
 
   "spinnerImplementation"(project(":spinner"))
 
@@ -636,48 +614,42 @@ fun assertIsGitRepo() {
 }
 
 fun getLastCommitTimestamp(): String {
-  assertIsGitRepo()
-
-  ByteArrayOutputStream().use { os ->
+  val stdout = ByteArrayOutputStream()
+  return try {
     exec {
-      executable = "git"
-      args = listOf("log", "-1", "--pretty=format:%ct")
-      standardOutput = os
+      commandLine = listOf("git", "log", "-1", "--pretty=format:%ct000")
+      standardOutput = stdout
     }
-
-    return os.toString() + "000"
+    stdout.toString().trim()
+  } catch (e: Throwable) {
+    logger.warn("Failed to get Git commit timestamp: ${e.message}. Using mtime of current build script.")
+    buildFile.lastModified().toString()
   }
 }
 
 fun getGitHash(): String {
-  assertIsGitRepo()
-
   val stdout = ByteArrayOutputStream()
-  exec {
-    commandLine = listOf("git", "rev-parse", "HEAD")
-    standardOutput = stdout
+  return try {
+    exec {
+      commandLine = listOf("git", "rev-parse", "--short=12", "HEAD")
+      standardOutput = stdout
+    }
+    stdout.toString().trim()
+  } catch (e: Throwable) {
+    logger.warn("Failed to get Git commit hash: ${e.message}. Using default value.")
+    "abc123def456"
   }
-
-  return stdout.toString().trim().substring(0, 12)
 }
 
-fun getCurrentGitTag(): String? {
+fun getCommitTag(): String {
   assertIsGitRepo()
 
   val stdout = ByteArrayOutputStream()
   exec {
-    commandLine = listOf("git", "tag", "--points-at", "HEAD")
+    commandLine = listOf("git", "describe", "--tags", "--exact-match")
     standardOutput = stdout
   }
-
-  val output: String = stdout.toString().trim()
-
-  return if (output.isNotEmpty()) {
-    val tags = output.split("\n").toList()
-    tags.firstOrNull { it.contains("nightly") } ?: tags[0]
-  } else {
-    null
-  }
+  return stdout.toString().trim().takeIf { it.isNotEmpty() } ?: "untagged"
 }
 
 tasks.withType<Test>().configureEach {
@@ -687,49 +659,6 @@ tasks.withType<Test>().configureEach {
     showCauses = true
     showExceptions = true
     showStackTraces = true
-  }
-}
-
-project.tasks.configureEach {
-  if (name.lowercase().contains("nightly") && name != "checkNightlyParams") {
-    dependsOn(tasks.getByName("checkNightlyParams"))
-  }
-}
-
-tasks.register("checkNightlyParams") {
-  doFirst {
-    if (project.gradle.startParameter.taskNames.any { it.lowercase().contains("nightly") }) {
-
-      if (!file("${project.rootDir}/nightly-url.txt").exists()) {
-        throw GradleException("Cannot find 'nightly-url.txt' for nightly build! It must exist in the root of this project and contain the location of the nightly manifest.")
-      }
-    }
-  }
-}
-
-fun loadKeystoreProperties(filename: String): Properties? {
-  val keystorePropertiesFile = file("${project.rootDir}/$filename")
-
-  return if (keystorePropertiesFile.exists()) {
-    val keystoreProperties = Properties()
-    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
-    keystoreProperties
-  } else {
-    null
-  }
-}
-
-fun getDateSuffix(): String {
-  return SimpleDateFormat("yyyy-MM-dd-HH:mm").format(Date())
-}
-
-fun getMapsKey(): String {
-  val mapKey = file("${project.rootDir}/maps.key")
-
-  return if (mapKey.exists()) {
-    mapKey.readLines()[0]
-  } else {
-    "AIzaSyCSx9xea86GwDKGznCAULE9Y5a8b-TfN9U"
   }
 }
 
@@ -745,4 +674,15 @@ fun Project.languageList(): List<String> {
 
 fun String.capitalize(): String {
   return this.replaceFirstChar { it.uppercase() }
+}
+
+// JW: added
+fun getMapsKey(): String {
+  val mapKey = file("${project.rootDir}/maps.key")
+
+  return if (mapKey.exists()) {
+    mapKey.readLines()[0]
+  } else {
+    "AIzaSyCSx9xea86GwDKGznCAULE9Y5a8b-TfN9U"
+  }
 }

@@ -822,7 +822,7 @@ open class MessageTable(context: Context?, databaseHelper: SignalDatabase) : Dat
     return results
   }
 
-  fun insertCallLog(recipientId: RecipientId, type: Long, timestamp: Long, outgoing: Boolean): InsertResult {
+  fun insertCallLog(recipientId: RecipientId, type: Long, timestamp: Long, outgoing: Boolean, expiresIn: Long): InsertResult {
     val recipient = Recipient.resolved(recipientId)
     val threadIdResult = threads.getOrCreateThreadIdResultFor(recipient.id, recipient.isGroup)
     val threadId = threadIdResult.threadId
@@ -835,6 +835,7 @@ open class MessageTable(context: Context?, databaseHelper: SignalDatabase) : Dat
       DATE_SENT to timestamp,
       READ to 1,
       TYPE to type,
+      EXPIRES_IN to expiresIn,
       THREAD_ID to threadId
     )
 
@@ -1021,7 +1022,8 @@ open class MessageTable(context: Context?, databaseHelper: SignalDatabase) : Dat
     peekGroupCallEraId: String?,
     peekJoinedUuids: Collection<UUID>,
     isCallFull: Boolean,
-    isRingingOnLocalDevice: Boolean
+    isRingingOnLocalDevice: Boolean,
+    expiresIn: Long,
   ) {
     writableDatabase.withinTransaction { db ->
       val cursor = db
@@ -1047,6 +1049,15 @@ open class MessageTable(context: Context?, databaseHelper: SignalDatabase) : Dat
         val contentValues = contentValuesOf(
           BODY to GroupCallUpdateDetailsUtil.createUpdatedBody(groupCallUpdateDetails, inCallUuids, isCallFull, isRingingOnLocalDevice)
         )
+
+        if (inCallUuids.isEmpty()) {
+          if (sameEraId && record.expireStarted == 0L) {
+            contentValues.put(EXPIRES_IN, expiresIn)
+          }
+        } else {
+          contentValues.put(EXPIRES_IN, 0)
+          contentValues.put(EXPIRE_STARTED, 0)
+        }
 
         if (sameEraId && (containsSelf || groupCallUpdateDetails.localUserJoined)) {
           contentValues.put(READ, 1)
@@ -3282,11 +3293,20 @@ open class MessageTable(context: Context?, databaseHelper: SignalDatabase) : Dat
 
   fun deleteMessage(messageId: Long): Boolean {
     val threadId = getThreadIdForMessage(messageId)
-    return deleteMessage(messageId, threadId)
+    return deleteMessage(messageId, isExpiring = false, threadId)
+  }
+
+  fun deleteMessage(messageId: Long, threadId: Long): Boolean {
+    return deleteMessage(messageId, isExpiring = false, threadId)
+  }
+
+  fun deleteExpiringMessage(messageId: Long): Boolean {
+    val threadId = getThreadIdForMessage(messageId)
+    return deleteMessage(messageId, isExpiring = true, threadId)
   }
 
   @VisibleForTesting
-  fun deleteMessage(messageId: Long, threadId: Long, notify: Boolean = true, updateThread: Boolean = true): Boolean {
+  fun deleteMessage(messageId: Long, isExpiring: Boolean = false, threadId: Long, notify: Boolean = true, updateThread: Boolean = true): Boolean {
     Log.d(TAG, "deleteMessage($messageId)")
 
     attachments.deleteAttachmentsForMessage(messageId)
@@ -3295,7 +3315,7 @@ open class MessageTable(context: Context?, databaseHelper: SignalDatabase) : Dat
 
     writableDatabase
       .delete(TABLE_NAME)
-      .where("$ID = ?", messageId)
+      .where("$ID = ?" + if (isExpiring) " AND $EXPIRE_STARTED > 0" else "", messageId)
       .run()
 
     calls.updateCallEventDeletionTimestamps()
@@ -5440,4 +5460,29 @@ open class MessageTable(context: Context?, databaseHelper: SignalDatabase) : Dat
       }
     }
   }
+
+  //---------------------------------------------------------------------------
+  // JW: Deletes only the attachment for the message, not the message itself.
+  fun deleteAttachmentsOnly(messageId: Long): Boolean {
+    val threadId = getThreadIdForMessage(messageId)
+    val attachmentTable = SignalDatabase.attachments
+    attachmentTable.deleteAttachmentsForMessage(messageId)
+    notifyConversationListeners(threadId)
+    return true
+  }
+
+  // JW: added functions required for PlaintextBackup
+  fun getMessageCount(): Int {
+    return readableDatabase
+      .select("COUNT(*)")
+      .from(TABLE_NAME)
+      .run()
+      .readToSingleInt()
+  }
+
+  fun getMessages(skip: Int, limit: Int): Cursor {
+    val db = databaseHelper.signalReadableDatabase
+    return db.query(TABLE_NAME, MMS_PROJECTION, null, null, null, null, ID, skip.toString().plus(",").plus(limit.toString()))
+  }
+  //---------------------------------------------------------------------------
 }

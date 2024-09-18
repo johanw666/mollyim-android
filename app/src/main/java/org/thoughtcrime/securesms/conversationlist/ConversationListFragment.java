@@ -18,7 +18,6 @@ package org.thoughtcrime.securesms.conversationlist;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
-import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.res.Configuration;
@@ -60,6 +59,7 @@ import androidx.coordinatorlayout.widget.CoordinatorLayout;
 import androidx.core.content.ContextCompat;
 import androidx.core.view.ViewCompat;
 import androidx.fragment.app.DialogFragment;
+import androidx.fragment.app.FragmentActivity;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.navigation.fragment.NavHostFragment;
 import androidx.recyclerview.widget.ItemTouchHelper;
@@ -84,6 +84,7 @@ import org.signal.core.util.concurrent.LifecycleDisposable;
 import org.signal.core.util.concurrent.SignalExecutors;
 import org.signal.core.util.concurrent.SimpleTask;
 import org.signal.core.util.logging.Log;
+import org.thoughtcrime.securesms.ImportExportActivity; // JW
 import org.thoughtcrime.securesms.MainActivity;
 import org.thoughtcrime.securesms.MainFragment;
 import org.thoughtcrime.securesms.MainNavigator;
@@ -91,9 +92,6 @@ import org.thoughtcrime.securesms.MuteDialog;
 import org.thoughtcrime.securesms.NewConversationActivity;
 import org.thoughtcrime.securesms.R;
 import org.thoughtcrime.securesms.backup.v2.ui.BackupAlertDelegate;
-import org.thoughtcrime.securesms.badges.models.Badge;
-import org.thoughtcrime.securesms.badges.self.expired.ExpiredOneTimeBadgeBottomSheetDialogFragment;
-import org.thoughtcrime.securesms.badges.self.expired.MonthlyDonationCanceledBottomSheetDialogFragment;
 import org.thoughtcrime.securesms.banner.Banner;
 import org.thoughtcrime.securesms.banner.BannerManager;
 import org.thoughtcrime.securesms.banner.banners.CdsPermanentErrorBanner;
@@ -106,7 +104,6 @@ import org.thoughtcrime.securesms.banner.banners.UnauthorizedBanner;
 import org.thoughtcrime.securesms.banner.banners.UsernameOutOfSyncBanner;
 import org.thoughtcrime.securesms.components.DeleteSyncEducationDialog;
 import org.thoughtcrime.securesms.components.Material3SearchToolbar;
-import org.thoughtcrime.securesms.components.RatingManager;
 import org.thoughtcrime.securesms.components.SignalProgressDialog;
 import org.thoughtcrime.securesms.components.menu.ActionItem;
 import org.thoughtcrime.securesms.components.menu.SignalBottomActionBar;
@@ -114,8 +111,6 @@ import org.thoughtcrime.securesms.components.menu.SignalContextMenu;
 import org.thoughtcrime.securesms.components.registration.PulsingFloatingActionButton;
 import org.thoughtcrime.securesms.components.settings.app.AppSettingsActivity;
 import org.thoughtcrime.securesms.components.settings.app.notifications.manual.NotificationProfileSelectionFragment;
-import org.thoughtcrime.securesms.components.settings.app.subscription.completed.InAppPaymentsBottomSheetDelegate;
-import org.thoughtcrime.securesms.components.settings.app.subscription.errors.UnexpectedSubscriptionCancellation;
 import org.thoughtcrime.securesms.components.spoiler.SpoilerAnnotation;
 import org.thoughtcrime.securesms.components.voice.VoiceNoteMediaControllerOwner;
 import org.thoughtcrime.securesms.components.voice.VoiceNotePlayerView;
@@ -168,7 +163,6 @@ import org.thoughtcrime.securesms.util.ConversationUtil;
 import org.thoughtcrime.securesms.util.ServiceUtil;
 import org.thoughtcrime.securesms.util.SharedPreferencesLifecycleObserver;
 import org.thoughtcrime.securesms.util.SignalLocalMetrics;
-import org.thoughtcrime.securesms.util.SignalProxyUtil;
 import org.thoughtcrime.securesms.util.SnapToTopDataObserver;
 import org.thoughtcrime.securesms.util.TextSecurePreferences;
 import org.thoughtcrime.securesms.util.ViewUtil;
@@ -275,7 +269,6 @@ public class ConversationListFragment extends MainFragment implements ActionMode
 
   @Override
   public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
-    getViewLifecycleOwner().getLifecycle().addObserver(new InAppPaymentsBottomSheetDelegate(getParentFragmentManager(), getViewLifecycleOwner()));
     BackupAlertDelegate.delegate(getParentFragmentManager(), getViewLifecycleOwner().getLifecycle());
 
     lifecycleDisposable = new LifecycleDisposable();
@@ -385,6 +378,7 @@ public class ConversationListFragment extends MainFragment implements ActionMode
     list.setLayoutManager(new LinearLayoutManager(requireActivity()));
     list.setItemAnimator(itemAnimator);
     list.addItemDecoration(archiveDecoration);
+    CachedInflater.from(list.getContext()).clear();
     CachedInflater.from(list.getContext()).cacheUntilLimit(R.layout.conversation_list_item_view, list, 10);
 
     snapToTopDataObserver = new SnapToTopDataObserver(list);
@@ -414,8 +408,6 @@ public class ConversationListFragment extends MainFragment implements ActionMode
     initializeVoiceNotePlayer();
     initializeBanners();
     maybeScheduleRefreshProfileJob();
-
-    RatingManager.showRatingDialogIfNecessary(requireContext());
 
     TooltipCompat.setTooltipText(requireCallback().getSearchAction(), getText(R.string.SearchToolbar_search_for_conversations_contacts_and_messages));
 
@@ -483,46 +475,9 @@ public class ConversationListFragment extends MainFragment implements ActionMode
       ((TimestampPayloadSupport) activeAdapter).notifyTimestampPayloadUpdate();
     }
 
-    SignalProxyUtil.startListeningToWebsocket();
-
     if (SignalStore.rateLimit().needsRecaptcha()) {
       Log.i(TAG, "Recaptcha required.");
       RecaptchaProofBottomSheetFragment.show(getChildFragmentManager());
-    }
-
-    Badge                              expiredBadge                       = SignalStore.inAppPayments().getExpiredBadge();
-    String                             subscriptionCancellationReason     = SignalStore.inAppPayments().getUnexpectedSubscriptionCancelationReason();
-    UnexpectedSubscriptionCancellation unexpectedSubscriptionCancellation = UnexpectedSubscriptionCancellation.fromStatus(subscriptionCancellationReason);
-    long                               subscriptionFailureTimestamp       = SignalStore.inAppPayments().getUnexpectedSubscriptionCancelationTimestamp();
-    long                               subscriptionFailureWatermark       = SignalStore.inAppPayments().getUnexpectedSubscriptionCancelationWatermark();
-    boolean                            isWatermarkPriorToTimestamp        = subscriptionFailureWatermark < subscriptionFailureTimestamp;
-
-    if (unexpectedSubscriptionCancellation != null &&
-        !SignalStore.inAppPayments().isDonationSubscriptionManuallyCancelled() &&
-        SignalStore.inAppPayments().showCantProcessDialog() &&
-        isWatermarkPriorToTimestamp)
-    {
-      Log.w(TAG, "Displaying bottom sheet for unexpected cancellation: " + unexpectedSubscriptionCancellation, true);
-      MonthlyDonationCanceledBottomSheetDialogFragment.show(getChildFragmentManager());
-      SignalStore.inAppPayments().setUnexpectedSubscriptionCancelationWatermark(subscriptionFailureTimestamp);
-    } else if (unexpectedSubscriptionCancellation != null && SignalStore.inAppPayments().isDonationSubscriptionManuallyCancelled()) {
-      Log.w(TAG, "Unexpected cancellation detected but not displaying dialog because user manually cancelled their subscription: " + unexpectedSubscriptionCancellation, true);
-      SignalStore.inAppPayments().setUnexpectedSubscriptionCancelationWatermark(subscriptionFailureTimestamp);
-    } else if (unexpectedSubscriptionCancellation != null && !SignalStore.inAppPayments().showCantProcessDialog()) {
-      Log.w(TAG, "Unexpected cancellation detected but not displaying dialog because user has silenced it.", true);
-      SignalStore.inAppPayments().setUnexpectedSubscriptionCancelationWatermark(subscriptionFailureTimestamp);
-    }
-
-    if (expiredBadge != null && expiredBadge.isBoost()) {
-      SignalStore.inAppPayments().setExpiredBadge(null);
-
-      Log.w(TAG, "Displaying bottom sheet for an expired badge", true);
-      ExpiredOneTimeBadgeBottomSheetDialogFragment.show(
-          expiredBadge,
-          unexpectedSubscriptionCancellation,
-          SignalStore.inAppPayments().getUnexpectedSubscriptionCancelationChargeFailure(),
-          getParentFragmentManager()
-      );
     }
   }
 
@@ -557,7 +512,7 @@ public class ConversationListFragment extends MainFragment implements ActionMode
 
   @Override
   public void onPrepareOptionsMenu(Menu menu) {
-    menu.findItem(R.id.menu_clear_passphrase).setVisible(!SignalStore.settings().getPassphraseDisabled());
+    menu.findItem(R.id.menu_clear_passphrase).setVisible(TextSecurePreferences.isPassphraseLockEnabled(requireContext()));
 
     ConversationFilterRequest request             = viewModel.getConversationFilterRequest();
     boolean                   isChatFilterEnabled = request != null && request.getFilter() == ConversationFilter.UNREAD;
@@ -584,9 +539,6 @@ public class ConversationListFragment extends MainFragment implements ActionMode
     } else if (itemId == R.id.menu_mark_all_read) {
       handleMarkAllRead();
       return true;
-    } else if (itemId == R.id.menu_invite) {
-      handleInvite();
-      return true;
     } else if (itemId == R.id.menu_notification_profile) {
       handleNotificationProfile();
       return true;
@@ -596,9 +548,15 @@ public class ConversationListFragment extends MainFragment implements ActionMode
     } else if (itemId == R.id.menu_clear_unread_filter) {
       onClearFilterClick();
       return true;
+    } else if (itemId == R.id.menu_import_export) { handleImportExport(); return true; // JW: added
     } else {
       return false;
     }
+  }
+
+  // JW: added
+  private void handleImportExport() {
+    startActivity(new Intent(requireActivity(), ImportExportActivity.class));
   }
 
   @Override
@@ -758,7 +716,7 @@ public class ConversationListFragment extends MainFragment implements ActionMode
   }
 
   @Override
-  public @NonNull Activity getMegaphoneActivity() {
+  public @NonNull FragmentActivity getMegaphoneActivity() {
     return requireActivity();
   }
 
@@ -1124,10 +1082,6 @@ public class ConversationListFragment extends MainFragment implements ActionMode
     });
   }
 
-  private void handleInvite() {
-    getNavigator().goToInvite();
-  }
-
   private void handleNotificationProfile() {
     NotificationProfileSelectionFragment.show(getParentFragmentManager());
   }
@@ -1371,9 +1325,6 @@ public class ConversationListFragment extends MainFragment implements ActionMode
       Log.i(TAG, "Received an empty data set.");
       fab.startPulse(3 * 1000);
       cameraFab.startPulse(3 * 1000);
-
-      SignalStore.onboarding().setShowNewGroup(true);
-      SignalStore.onboarding().setShowInviteFriends(true);
     } else {
       fab.stopPulse();
       cameraFab.stopPulse();
@@ -1381,10 +1332,6 @@ public class ConversationListFragment extends MainFragment implements ActionMode
   }
 
   protected void onPostSubmitList(int conversationCount) {
-    if (conversationCount >= 6 && (SignalStore.onboarding().shouldShowInviteFriends() || SignalStore.onboarding().shouldShowNewGroup())) {
-      SignalStore.onboarding().clearAll();
-      AppDependencies.getMegaphoneRepository().markFinished(Megaphones.Event.ONBOARDING);
-    }
   }
 
   @Override

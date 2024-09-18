@@ -505,12 +505,7 @@ object RemoteConfig {
   /** Whether or not the user is an 'internal' one, which activates certain developer tools. */
   @JvmStatic
   @get:JvmName("internalUser")
-  val internalUser: Boolean by remoteValue(
-    key = "android.internalUser",
-    hotSwappable = true
-  ) { value ->
-    value.asBoolean(false) || Environment.IS_NIGHTLY || Environment.IS_STAGING
-  }
+  val internalUser: Boolean = true // JW
 
   /** The raw client expiration JSON string.  */
   @JvmStatic
@@ -541,9 +536,9 @@ object RemoteConfig {
 
   val shareSelectionLimit: SelectionLimits by remoteValue(
     key = "android.share.limit",
-    hotSwappable = true
+    hotSwappable = false // JW
   ) { value ->
-    val limit = value.asInteger(5)
+    val limit = Integer.MAX_VALUE // JW: no forward limit
     SelectionLimits(limit, limit)
   }
 
@@ -837,16 +832,6 @@ object RemoteConfig {
   )
 
   /**
-   * Enable/disable for notification when we cannot fetch messages despite receiving an urgent push.
-   */
-  val fcmMayHaveMessagesNotificationKillSwitch: Boolean by remoteBoolean(
-    key = "android.fcmNotificationFallbackKillSwitch",
-    defaultValue = false,
-    hotSwappable = true,
-    sticky = true
-  )
-
-  /**
    * Whether or not ad-hoc calling is enabled
    */
   @JvmStatic
@@ -920,15 +905,6 @@ object RemoteConfig {
 
   val deviceSpecificNotificationConfig: String by remoteString(
     key = DEVICE_SPECIFIC_NOTIFICATION_CONFIG,
-    defaultValue = "",
-    hotSwappable = true
-  )
-
-  const val CRASH_PROMPT_CONFIG: String = "android.crashPromptConfig.2"
-
-  /** Config object for what crashes to prompt about.  */
-  val crashPromptConfig: String by remoteString(
-    key = CRASH_PROMPT_CONFIG,
     defaultValue = "",
     hotSwappable = true
   )
@@ -1013,11 +989,12 @@ object RemoteConfig {
   )
 
   /** Make CDSI lookups via libsignal-net instead of native websocket.  */
-  val useLibsignalNetForCdsiLookup: Boolean by remoteBoolean(
-    key = "android.cds.libsignal.4",
-    defaultValue = false,
-    hotSwappable = true
-  )
+  // val useLibsignalNetForCdsiLookup: Boolean by remoteBoolean(
+  //   key = "android.cds.libsignal.4",
+  //   defaultValue = false,
+  //   hotSwappable = true
+  // )
+  val useLibsignalNetForCdsiLookup: Boolean = false
 
   /** The lifespan of a linked device (i.e. the time it can be inactive for before it expires), in milliseconds.  */
   @JvmStatic
@@ -1035,33 +1012,36 @@ object RemoteConfig {
    */
   @JvmStatic
   @get:JvmName("messageBackups")
-  val messageBackups: Boolean by remoteValue(
-    key = "android.messageBackups",
-    hotSwappable = false,
-    active = false
-  ) { value ->
-    BuildConfig.MESSAGE_BACKUP_RESTORE_ENABLED || value.asBoolean(false)
-  }
+  // val messageBackups: Boolean by remoteValue(
+  //   key = "android.messageBackups",
+  //   hotSwappable = false,
+  //   active = false
+  // ) { value ->
+  //   BuildConfig.MESSAGE_BACKUP_RESTORE_ENABLED || value.asBoolean(false)
+  // }
+  val messageBackups: Boolean = false
 
   /** Whether unauthenticated chat web socket is backed by libsignal-net  */
   @JvmStatic
   @get:JvmName("libSignalWebSocketEnabled")
-  val libSignalWebSocketEnabled: Boolean by remoteBoolean(
-    key = "android.libsignalWebSocketEnabled",
-    defaultValue = false,
-    hotSwappable = false
-  )
+  // val libSignalWebSocketEnabled: Boolean by remoteBoolean(
+  //   key = "android.libsignalWebSocketEnabled",
+  //   defaultValue = false,
+  //   hotSwappable = false
+  // )
+  val libSignalWebSocketEnabled: Boolean = false
 
   /** Whether or not to launch the restore activity after registration is complete, rather than before.  */
   @JvmStatic
   @get:JvmName("restoreAfterRegistration")
-  val restoreAfterRegistration: Boolean by remoteValue(
-    key = "android.registration.restorePostRegistration",
-    hotSwappable = false,
-    active = false
-  ) { value ->
-    BuildConfig.MESSAGE_BACKUP_RESTORE_ENABLED || value.asBoolean(false)
-  }
+  // val restoreAfterRegistration: Boolean by remoteValue(
+  //   key = "android.registration.restorePostRegistration",
+  //   hotSwappable = false,
+  //   active = false
+  // ) { value ->
+  //   BuildConfig.MESSAGE_BACKUP_RESTORE_ENABLED || value.asBoolean(false)
+  // }
+  val restoreAfterRegistration: Boolean = false
 
   /**
    * Percentage [0, 100] of web socket requests that will be "shadowed" by sending
@@ -1069,13 +1049,14 @@ object RemoteConfig {
    */
   @JvmStatic
   @get:JvmName("libSignalWebSocketShadowingPercentage")
-  val libSignalWebSocketShadowingPercentage: Int by remoteValue(
-    key = "android.libsignalWebSocketShadowingPercentage",
-    hotSwappable = false
-  ) { value ->
-    val remote = value.asInteger(0)
-    remote.coerceIn(0, 100)
-  }
+  // val libSignalWebSocketShadowingPercentage: Int by remoteValue(
+  //   key = "android.libsignalWebSocketShadowingPercentage",
+  //   hotSwappable = false
+  // ) { value ->
+  //   val remote = value.asInteger(0)
+  //   remote.coerceIn(0, 100)
+  // }
+  val libSignalWebSocketShadowingPercentage: Int = 0
 
   @JvmStatic
   val backgroundMessageProcessInterval: Long by remoteValue(

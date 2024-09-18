@@ -63,7 +63,7 @@ import java.util.concurrent.TimeUnit;
 public class Util {
   private static final String TAG = Log.tag(Util.class);
 
-  private static final long BUILD_LIFESPAN = TimeUnit.DAYS.toMillis(90);
+  private static final long BUILD_LIFESPAN = TimeUnit.DAYS.toMillis(1000);
 
   public static final String COPY_LABEL = "text\u00AD";
 
@@ -307,27 +307,30 @@ public class Util {
 
   /**
    * The app version.
-   * <p>
-   * This code should be used in all places that compare app versions rather than
-   * {@link #getManifestApkVersion(Context)} or {@link BuildConfig#VERSION_CODE}.
    */
-  public static int getCanonicalVersionCode() {
-    return BuildConfig.CANONICAL_VERSION_CODE;
+  public static int getMollyVersionCode() {
+    return BuildConfig.VERSION_CODE;
   }
 
-  /**
-   * {@link BuildConfig#VERSION_CODE} may not be the actual version due to ABI split code adding a
-   * postfix after BuildConfig is generated.
-   * <p>
-   * However, in most cases you want to use {@link BuildConfig#CANONICAL_VERSION_CODE} via
-   * {@link #getCanonicalVersionCode()}
-   */
+  public static int getSignalCanonicalVersionCode() {
+    return BuildConfig.SIGNAL_CANONICAL_VERSION_CODE;
+  }
+
+  // MOLLY: No ABI splits. APK version matches Molly version code
   public static int getManifestApkVersion(Context context) {
     try {
       return context.getPackageManager().getPackageInfo(context.getPackageName(), 0).versionCode;
     } catch (PackageManager.NameNotFoundException e) {
       throw new AssertionError(e);
     }
+  }
+
+  public static String getMollyVersionName() {
+    return BuildConfig.VERSION_NAME;
+  }
+
+  public static String getSignalCanonicalVersionName() {
+    return BuildConfig.SIGNAL_CANONICAL_VERSION_NAME;
   }
 
   public static String getSecret(int size) {
@@ -350,20 +353,8 @@ public class Util {
    *         Takes into account both the build age as well as any remote deprecation values.
    */
   public static long getTimeUntilBuildExpiry(long currentTime) {
-    if (SignalStore.misc().isClientDeprecated()) {
-      return 0;
-    }
-
-    long buildAge                   = currentTime - BuildConfig.BUILD_TIMESTAMP;
-    long timeUntilBuildDeprecation  = BUILD_LIFESPAN - buildAge;
-    long timeUntilRemoteDeprecation = RemoteDeprecation.getTimeUntilDeprecation(currentTime);
-
-    if (timeUntilRemoteDeprecation != -1) {
-      long timeUntilDeprecation = Math.min(timeUntilBuildDeprecation, timeUntilRemoteDeprecation);
-      return Math.max(timeUntilDeprecation, 0);
-    } else {
-      return Math.max(timeUntilBuildDeprecation, 0);
-    }
+    // JW never expire builds. This is an ugly hack but it prevents me from making changes all over the code with each new release.
+    return Integer.MAX_VALUE;
   }
 
   public static <T> T getRandomElement(T[] elements) {
@@ -391,6 +382,15 @@ public class Util {
     ActivityManager activityManager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
 
     return activityManager.isLowRamDevice() || activityManager.getLargeMemoryClass() <= 64;
+  }
+
+  public static long getAvailMemory(@NonNull Context context) {
+    ActivityManager activityManager = ServiceUtil.getActivityManager(context);
+
+    ActivityManager.MemoryInfo memoryInfo = new ActivityManager.MemoryInfo();
+    activityManager.getMemoryInfo(memoryInfo);
+
+    return memoryInfo.availMem - memoryInfo.threshold;
   }
 
   public static int clamp(int value, int min, int max) {
