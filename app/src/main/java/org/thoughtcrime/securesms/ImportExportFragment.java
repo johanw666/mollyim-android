@@ -23,9 +23,10 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Toast;
 
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+
 import org.signal.core.util.logging.Log;
 import org.thoughtcrime.securesms.backup.BackupDialog;
-import org.thoughtcrime.securesms.conversationlist.ConversationListFragment;
 import org.thoughtcrime.securesms.database.EncryptedBackupExporter;
 import org.thoughtcrime.securesms.database.NoExternalStorageException;
 import org.thoughtcrime.securesms.database.PlaintextBackupExporter;
@@ -91,7 +92,6 @@ public class ImportExportFragment extends Fragment {
     Permissions.onRequestPermissionsResult(this, requestCode, permissions, grantResults);
   }
 
-
   @SuppressWarnings("CodeBlock2Expr")
   @SuppressLint("InlinedApi")
   private void handleImportWhatsappBackup() {
@@ -110,7 +110,7 @@ public class ImportExportFragment extends Fragment {
       builder.setNegativeButton(getActivity().getString(R.string.ImportFragment_cancel), null);
       builder.show();
     } else {
-      AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
+      AlertDialog.Builder builder = new MaterialAlertDialogBuilder(getActivity());
       builder.setMessage(getActivity().getString(R.string.ImportFragment_no_whatsapp_backup_found))
              .setCancelable(false)
              .setPositiveButton(getActivity().getString(R.string.ImportFragment_restore_ok), new DialogInterface.OnClickListener() {
@@ -194,7 +194,7 @@ public class ImportExportFragment extends Fragment {
   @SuppressLint("InlinedApi")
   private void handleImportPlaintextBackup() {
     CheckAndGetAccessPermissionApi30();
-    AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
+    AlertDialog.Builder builder = new MaterialAlertDialogBuilder(getActivity());
     builder.setIcon(R.drawable.symbol_error_triangle_fill_24);
     builder.setTitle(getActivity().getString(R.string.ImportFragment_import_plaintext_backup));
     builder.setMessage(getActivity().getString(R.string.ImportFragment_this_will_import_messages_from_a_plaintext_backup));
@@ -222,7 +222,7 @@ public class ImportExportFragment extends Fragment {
   @SuppressLint("InlinedApi")
   private void handleExportPlaintextBackup() {
     CheckAndGetAccessPermissionApi30();
-    AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
+    AlertDialog.Builder builder = new MaterialAlertDialogBuilder(getActivity());
     builder.setIcon(R.drawable.symbol_error_triangle_fill_24);
     builder.setTitle(getActivity().getString(R.string.ExportFragment_export_plaintext_to_storage));
     builder.setMessage(getActivity().getString(R.string.ExportFragment_warning_this_will_export_the_plaintext_contents));
@@ -357,7 +357,7 @@ public class ImportExportFragment extends Fragment {
 
   public void handleImportEncryptedBackup() {
     CheckAndGetAccessPermissionApi30();
-    AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
+    AlertDialog.Builder builder = new MaterialAlertDialogBuilder(getActivity());
     builder.setIcon(R.drawable.symbol_error_triangle_fill_24);
     builder.setTitle(getActivity().getString(R.string.ImportFragment_restore_encrypted_backup));
     builder.setMessage(getActivity().getString(R.string.ImportFragment_restoring_an_encrypted_backup_will_completely_replace_your_existing_keys));
@@ -418,7 +418,7 @@ public class ImportExportFragment extends Fragment {
           //context.startService(intent);
 
           // JW: Restart after OK press
-          AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
+          AlertDialog.Builder builder = new MaterialAlertDialogBuilder(getActivity());
           builder.setMessage(context.getString(R.string.ImportFragment_restore_complete))
                   .setCancelable(false)
                   .setPositiveButton(context.getString(R.string.ImportFragment_restore_ok), new DialogInterface.OnClickListener() {
@@ -448,7 +448,7 @@ public class ImportExportFragment extends Fragment {
 
   private void handleExportEncryptedBackup() {
     CheckAndGetAccessPermissionApi30();
-    AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
+    AlertDialog.Builder builder = new MaterialAlertDialogBuilder(getActivity());
     builder.setIcon(R.drawable.symbol_info_24);
     builder.setTitle(getActivity().getString(R.string.ExportFragment_export_to_sd_card));
     builder.setMessage(getActivity().getString(R.string.ExportFragment_this_will_export_your_encrypted_keys_settings_and_messages));
@@ -533,7 +533,7 @@ public class ImportExportFragment extends Fragment {
   private void CheckAndGetAccessPermissionApi30() {
     if (Build.VERSION.SDK_INT >= 30) {
       if (!Environment.isExternalStorageManager()) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
+        AlertDialog.Builder builder = new MaterialAlertDialogBuilder(getActivity());
         builder.setMessage(getActivity().getString(R.string.ImportExportFragment_signal_needs_the_all_files_access_permission))
                .setCancelable(false)
                .setPositiveButton(getActivity().getString(R.string.ImportFragment_restore_ok), new DialogInterface.OnClickListener() {

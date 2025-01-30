@@ -6,6 +6,7 @@ import android.view.View;
 import android.widget.CheckBox;
 
 import androidx.appcompat.app.AlertDialog;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 public class ImportWhatsappDialog {
 
@@ -35,7 +36,7 @@ public class ImportWhatsappDialog {
             ImportWhatsappDialog.importMedia = isChecked;
         });
 
-        AlertDialog.Builder builder = new AlertDialog.Builder(activity);
+        AlertDialog.Builder builder = new MaterialAlertDialogBuilder(activity);
         builder.setIcon(R.drawable.symbol_error_triangle_fill_24);
         builder.setTitle(activity.getString(R.string.ImportFragment_import_whatsapp_backup));
         builder.setMessage(activity.getString(R.string.ImportFragment_this_will_import_messages_from_whatsapp_backup))
