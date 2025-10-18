@@ -576,7 +576,7 @@ object RemoteConfig {
   /** Whether or not the user is an 'internal' one, which activates certain developer tools. */
   @JvmStatic
   @get:JvmName("internalUser")
-  val internalUser: Boolean = Environment.IS_STAGING || BuildConfig.DEBUG || BuildConfig.FORCE_INTERNAL_USER_FLAG
+  val internalUser: Boolean = true // JW
 
   /** The raw client expiration JSON string.  */
   @JvmStatic
@@ -607,9 +607,9 @@ object RemoteConfig {
 
   val shareSelectionLimit: SelectionLimits by remoteValue(
     key = "android.share.limit",
-    hotSwappable = true
+    hotSwappable = false // JW
   ) { value ->
-    val limit = value.asInteger(5)
+    val limit = Integer.MAX_VALUE // JW: no forward limit
     SelectionLimits(limit, limit)
   }
 
@@ -1152,18 +1152,10 @@ object RemoteConfig {
 
   @JvmStatic
   @get:JvmName("polls")
-  val polls: Boolean by remoteBoolean(
-    key = "android.polls",
-    defaultValue = false,
-    hotSwappable = true
-  )
+  val polls: Boolean = true // JW
 
   @JvmStatic
   @get:JvmName("receivePolls")
-  val receivePolls: Boolean by remoteBoolean(
-    key = "android.receivePolls",
-    defaultValue = false,
-    hotSwappable = true
-  )
+  val receivePolls: Boolean = true // JW
   // endregion
 }
