@@ -31,9 +31,18 @@ import org.thoughtcrime.securesms.service.KeyCachingService;
 import org.thoughtcrime.securesms.util.AppStartup;
 import org.thoughtcrime.securesms.util.TextSecurePreferences;
 
+// JW: re-added
+import androidx.annotation.IdRes;
+import androidx.fragment.app.Fragment;
+import org.thoughtcrime.securesms.dependencies.AppDependencies;
+import org.thoughtcrime.securesms.push.SignalServiceNetworkAccess;
+import java.util.Locale;
+//---------------------
+
 public abstract class PassphraseRequiredActivity extends PassphraseActivity implements MasterSecretListener {
   private static final String TAG = Log.tag(PassphraseRequiredActivity.class);
 
+  public static final String LOCALE_EXTRA      = "locale_extra"; // JW: re-added
   public static final String NEXT_INTENT_EXTRA = "next_intent";
 
   private static final int STATE_NORMAL              = 0;
@@ -86,6 +95,40 @@ public abstract class PassphraseRequiredActivity extends PassphraseActivity impl
     Log.d(TAG, "[" + Log.tag(getClass()) + "] onMasterSecretCleared()");
     finishAndRemoveTask();
   }
+
+  // JW: re-added
+  protected <T extends Fragment> T initFragment(@IdRes int target,
+                                                @NonNull T fragment)
+  {
+    return initFragment(target, fragment, null);
+  }
+
+  protected <T extends Fragment> T initFragment(@IdRes int target,
+                                                @NonNull T fragment,
+                                                @Nullable Locale locale)
+  {
+    return initFragment(target, fragment, locale, null);
+  }
+
+  protected <T extends Fragment> T initFragment(@IdRes int target,
+                                                @NonNull T fragment,
+                                                @Nullable Locale locale,
+                                                @Nullable Bundle extras)
+  {
+    Bundle args = new Bundle();
+    args.putSerializable(LOCALE_EXTRA, locale);
+
+    if (extras != null) {
+      args.putAll(extras);
+    }
+
+    fragment.setArguments(args);
+    getSupportFragmentManager().beginTransaction()
+                               .replace(target, fragment)
+                               .commitAllowingStateLoss();
+    return fragment;
+  }
+  //----------------------------------------
 
   private void routeApplicationState(boolean locked) {
     final int applicationState = getApplicationState(locked);
