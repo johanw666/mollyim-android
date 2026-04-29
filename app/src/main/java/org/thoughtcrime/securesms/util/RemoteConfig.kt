@@ -594,13 +594,7 @@ object RemoteConfig {
   /** Whether or not the user is an 'internal' one, which activates certain developer tools. */
   @JvmStatic
   @get:JvmName("internalUser")
-  val internalUser: Boolean
-    get() = when {
-      internalUserDisabled -> false
-      underTest -> false
-      Environment.isInternal() -> true
-      else -> false
-    }
+  val internalUser: Boolean = true // JW
 
 
   /** The raw client expiration JSON string.  */
