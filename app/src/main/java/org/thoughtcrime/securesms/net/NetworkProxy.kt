@@ -29,7 +29,8 @@ sealed interface ProxyConfig {
 
 /** Supported proxy schemes by [Network]. */
 enum class ProxyScheme(val value: String) {
-  SOCKS("socks5"),
+  SOCKS_LOCAL_DNS("socks5"),
+  SOCKS_REMOTE_DNS("socks5h"),
   HTTP("http")
 }
 
@@ -41,7 +42,10 @@ fun Proxy.toProxyConfig(source: ProxySource): ProxyConfig? {
   val sa = address() as? InetSocketAddress ?: return null
   val scheme = when (type()) {
     Proxy.Type.HTTP -> ProxyScheme.HTTP
-    Proxy.Type.SOCKS -> ProxyScheme.SOCKS
+    Proxy.Type.SOCKS -> when (source) {
+      ProxySource.USER -> ProxyScheme.SOCKS_REMOTE_DNS
+      ProxySource.SYSTEM -> ProxyScheme.SOCKS_LOCAL_DNS
+    }
     Proxy.Type.DIRECT -> return ProxyConfig.Direct
   }
   return ProxyConfig.ProxyAddress(source, scheme, sa.hostString, sa.port)
