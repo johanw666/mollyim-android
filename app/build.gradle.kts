@@ -13,6 +13,7 @@ plugins {
 
 val canonicalVersionCode = 1775
 val canonicalVersionName = "8.34.2"
+val jwNameSuffix         = ".0-JW" // JW
 val currentHotfixVersion = 0
 val maxHotfixVersions = 100
 val mollyRevision = 1
@@ -161,7 +162,7 @@ android {
   }
 
   defaultConfig {
-    val sourceVersionNameWithRevision = "${canonicalVersionName}-${mollyRevision}"
+    val sourceVersionNameWithRevision = "${canonicalVersionName}-${mollyRevision}" + jwNameSuffix // JW
 
     versionCode = (canonicalVersionCode * maxHotfixVersions) + mollyRevision + currentHotfixVersion
     versionName = sourceVersionNameWithRevision
